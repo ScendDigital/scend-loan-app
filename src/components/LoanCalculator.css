@@ -1,0 +1,51 @@
+/* LoanCalculator.css - Scend color scheme applied */
+
+.container {
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+  border-radius: 16px;
+  background-color: #fff0f5; /* Light pink */
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+  color: #d63384; /* Scend pink */
+  text-align: center;
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+input, select {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  margin-bottom: 16px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+}
+
+button {
+  padding: 10px 15px;
+  margin: 10px 5px 0;
+  border: none;
+  border-radius: 10px;
+  background-color: #d63384; /* Scend pink */
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background-color: #b02a6c; /* darker pink */
+}
+
+.result-box {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 10px;
+  border: 1px dashed #d63384;
+  margin-top: 20px;
+  color: #333;
+}
