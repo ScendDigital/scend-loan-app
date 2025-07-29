@@ -1,9 +1,11 @@
-// File: src/App.js
+// File: src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import Home from './pages/Home';
 import LoanTool from './pages/LoanTool';
 import NotFound from './pages/NotFound';
+import AboutUs from './pages/AboutUs';
+import Contact from './pages/Contact';
 
 function App() {
   return (
@@ -15,6 +17,8 @@ function App() {
             <div className="space-x-4">
               <Link to="/" className="hover:underline">Home</Link>
               <Link to="/loan" className="hover:underline">Loan Tool</Link>
+              <Link to="/about" className="hover:underline">About Us</Link>
+              <Link to="/contact" className="hover:underline">Contact</Link>
             </div>
           </nav>
         </header>
@@ -23,6 +27,8 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/loan" element={<LoanTool />} />
+            <Route path="/about" element={<AboutUs />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

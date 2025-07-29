@@ -1,6 +1,6 @@
 import { useState } from "react";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 export default function LoanTool() {
   const [loanType, setLoanType] = useState("Personal Loan");
@@ -90,34 +90,47 @@ export default function LoanTool() {
   };
 
   const handleDownloadPDF = () => {
-    if (!result) return;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("Scend Loan Qualification Summary", 14, 20);
-    doc.setFontSize(12);
-    doc.autoTable({
-      startY: 30,
-      body: [
-        ["Loan Type", loanType],
-        ["Monthly Income", `R${income}`],
-        ["Monthly Expenses", `R${expenses}`],
-        ["Loan Amount", `R${loanAmount}`],
-        ["Term", `${term} months`],
-        ["Deposit", `${deposit}%`],
-        ["Balloon", `${balloon}%`],
-        ["Interest Rate", `${result.interestRate}%`],
-        ["Monthly Repayment", `R${result.repayment}`],
-        ["Total Repayment", `R${result.totalRepayment}`],
-        ["Loan Cost", `R${result.loanCost}`],
-        ["DTI", `${result.dti}%`],
-        ["Credit Score", `${result.creditScore}`],
-        ["Approval Likelihood", result.approvalChance],
-        ["Decision", result.recommendation],
-      ],
-      theme: "striped",
+  if (!result) return;
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Scend Loan Qualification Summary", 14, 20);
+
+  doc.setFontSize(12);
+  doc.autoTable({
+    startY: 30,
+    body: [
+      ["Loan Type", loanType],
+      ["Monthly Income", `R${income}`],
+      ["Monthly Expenses", `R${expenses}`],
+      ["Loan Amount", `R${loanAmount}`],
+      ["Term", `${term} months`],
+      ["Deposit", `${deposit}%`],
+      ["Balloon", `${balloon}%`],
+      ["Interest Rate", `${result.interestRate}%`],
+      ["Monthly Repayment", `R${result.repayment}`],
+      ["Total Repayment", `R${result.totalRepayment}`],
+      ["Loan Cost", `R${result.loanCost}`],
+      ["DTI", `${result.dti}%`],
+      ["Credit Score", `${result.creditScore}`],
+      ["Approval Likelihood", result.approvalChance],
+      ["Decision", result.recommendation],
+    ],
+    theme: "striped",
+  });
+
+  // ✅ Add suggestions as a list below the table
+  if (result.suggestions && result.suggestions.length > 0) {
+    const startY = doc.lastAutoTable.finalY + 10;
+    doc.text("Suggestions:", 14, startY);
+
+    result.suggestions.forEach((s, i) => {
+      doc.text(`- ${s}`, 18, startY + 6 + i * 6);
     });
-    doc.save("loan_summary.pdf");
-  };
+  }
+
+  doc.save("loan_summary.pdf");
+};
+
 
   const handleSubmit = () => {
     if (!result) return;
@@ -138,11 +151,7 @@ export default function LoanTool() {
     <div className="max-w-2xl mx-auto p-6 bg-white shadow-xl rounded-xl space-y-6">
       <h2 className="text-2xl font-bold text-pink-600 text-center">Loan Qualification Tool</h2>
 
-      <select
-        value={loanType}
-        onChange={(e) => setLoanType(e.target.value)}
-        className="w-full p-2 border rounded"
-      >
+      <select value={loanType} onChange={(e) => setLoanType(e.target.value)} className="w-full p-2 border rounded">
         <option>Personal Loan</option>
         <option>Vehicle Finance</option>
         <option>Home Loan</option>
