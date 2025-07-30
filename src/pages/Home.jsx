@@ -1,8 +1,17 @@
-export default function Home() {
+// src/pages/Home.jsx
+import React from 'react';
+import logo from '../assets/scend-logo.png';
+
+function Home() {
   return (
-    <div className="p-8 text-center">
-      <h1 className="text-4xl font-bold mb-4">Welcome to Scend</h1>
-      <p className="text-lg">Digital-first lending and financial solutions for South Africa.</p>
+    <div className="text-center mt-10">
+      <div className="flex justify-center items-center space-x-4 mb-6">
+        <img src={logo} alt="Scend Logo" className="h-12" />
+        <h1 className="text-4xl font-bold text-pink-600">Welcome to Scend</h1>
+      </div>
+      <p className="text-lg">Your smart loan qualification tool powered by South African intelligence.</p>
     </div>
   );
 }
+
+export default Home;
