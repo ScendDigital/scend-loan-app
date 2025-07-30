@@ -1,188 +1,298 @@
-// src/pages/LoanTool.jsx
 import React, { useState } from "react";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import logo from "../assets/scend-logo.png";
 
 const LoanTool = () => {
-  const [loanType, setLoanType] = useState("Personal Loan");
-  const [income, setIncome] = useState("");
-  const [expenses, setExpenses] = useState("");
-  const [amount, setAmount] = useState("");
-  const [term, setTerm] = useState("");
-  const [balloonPercent, setBalloonPercent] = useState("");
-  const [depositAmount, setDepositAmount] = useState("");
+  const [form, setForm] = useState({
+    income: "",
+    expenses: "",
+    amount: "",
+    term: "",
+    loanType: "Personal Loan",
+    balloonPercent: "",
+    deposit: ""
+  });
+
   const [results, setResults] = useState(null);
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleCalculate = () => {
-    const inc = parseFloat(income);
-    const exp = parseFloat(expenses);
-    const loanAmt = parseFloat(amount);
-    const months = parseInt(term);
-    const balloon = parseFloat(balloonPercent) || 0;
-    const deposit = parseFloat(depositAmount) || 0;
+    const income = parseFloat(form.income);
+    const expenses = parseFloat(form.expenses);
+    const loanAmount = parseFloat(form.amount);
+    const term = parseInt(form.term);
+    const balloonPercent = parseFloat(form.balloonPercent || 0);
+    const deposit = parseFloat(form.deposit || 0);
+    const disposable = income - expenses;
 
-    if (isNaN(inc) || isNaN(exp) || isNaN(loanAmt) || isNaN(months)) return;
+    let interestRate = 14;
+    if (income > 20000 && expenses / income < 0.3) interestRate = 12;
+    if (income > 50000 && expenses / income < 0.2) interestRate = 10;
 
-    const disposable = inc - exp;
-    const dtiRaw = (exp / inc) * 100;
-    const dti = parseFloat(dtiRaw.toFixed(1));
+    let balloonAmount = 0;
+    let principal = loanAmount;
 
-    const balloonValue = loanType === "Vehicle Finance" ? (loanAmt * (balloon / 100)) : 0;
-    const principal = loanAmt - deposit - balloonValue;
+    if (form.loanType === "Vehicle Finance") {
+      balloonAmount = (balloonPercent / 100) * loanAmount;
+      principal = loanAmount - balloonAmount - deposit;
+    } else if (form.loanType === "Home Loan") {
+      principal = loanAmount - deposit;
+    }
 
-    const rate = getInterestRate(loanType, dti);
-    const monthlyRate = rate / 12 / 100;
-    const repayment = (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months));
-    const totalRepayment = repayment * months;
-    const loanCost = totalRepayment - principal;
+    const monthlyRate = interestRate / 100 / 12;
+    const monthlyRepayment =
+      (monthlyRate * principal) / (1 - Math.pow(1 + monthlyRate, -term));
 
-    const repaymentRounded = parseFloat(repayment.toFixed(2));
-    const totalRounded = parseFloat(totalRepayment.toFixed(2));
-    const costRounded = parseFloat(loanCost.toFixed(2));
+    const totalRepayment = monthlyRepayment * term;
+    const totalLoanCost = totalRepayment + balloonAmount - principal;
+    const dti = (monthlyRepayment / income) * 100;
 
-    const estimatedCreditScore = estimateCreditScore(dti, inc, disposable);
-    const decision = repayment > disposable ? "Declined" : dti > 55 ? "Declined" : dti < 40 ? "Approved" : "Borderline";
-    const dtiRisk = dti > 50 ? "High Risk" : dti > 40 ? "Moderate Risk" : "Low Risk";
+    const creditScore =
+      700 +
+      (disposable > 5000 ? 10 : 0) +
+      (dti < 30 ? 10 : 0) +
+      (expenses / income < 0.5 ? 10 : 0);
 
-    const suggestions = generateSuggestions(disposable, repayment, dti, decision);
+    let approval = "❌ Declined";
+    let likelihood = "Low";
+    let badge = "bg-red-500";
+    if (dti <= 35 && monthlyRepayment <= disposable) {
+      approval = "✅ Approved";
+      likelihood = "High";
+      badge = "bg-green-500";
+    } else if (dti <= 50 && monthlyRepayment <= disposable) {
+      approval = "⚠️ Borderline";
+      likelihood = "Moderate";
+      badge = "bg-yellow-500";
+    }
+
+    const dtiRisk =
+      dti < 30 ? "Low Risk" : dti < 50 ? "Moderate Risk" : "High Risk";
+
+    const suggestions =
+      monthlyRepayment > disposable
+        ? "Monthly repayment exceeds disposable income."
+        : dti > 55
+        ? "DTI too high. Consider reducing loan amount or increasing income."
+        : approval === "✅ Approved"
+        ? "You may qualify for better interest rates or terms."
+        : "Consider reducing your loan amount or increasing your income for better chances.";
 
     setResults({
-      rate,
-      repayment: repaymentRounded,
-      totalRepayment: totalRounded,
-      loanCost: costRounded,
-      dti: parseFloat(((repayment / inc) * 100).toFixed(1)),
-      dtiRisk,
+      interestRate,
+      monthlyRepayment,
+      totalRepayment,
+      totalLoanCost,
       disposable,
-      balloonDue: balloonValue,
-      estimatedCreditScore,
-      approval: decision,
+      dti,
+      dtiRisk,
+      balloonAmount,
+      creditScore,
+      approval,
+      likelihood,
+      badge,
       suggestions
     });
   };
 
-  const getInterestRate = (type, dti) => {
-    let base = type === "Home Loan" ? 11 : type === "Vehicle Finance" ? 13 : 14;
-    if (dti > 50) base += 3;
-    return Math.min(base, 27.75); // SA NCA max cap
-  };
-
-  const estimateCreditScore = (dti, income, disposable) => {
-    if (dti < 35 && disposable > income * 0.4) return 720;
-    if (dti < 45) return 680;
-    return 640;
-  };
-
-  const generateSuggestions = (disposable, repayment, dti, decision) => {
-    const suggestions = [];
-
-    if (repayment > disposable) {
-      suggestions.push("Monthly repayment exceeds disposable income.");
-    }
-    if (decision === "Declined") {
-      suggestions.push("Consider reducing your loan amount or increasing your income.");
-    }
-    if (decision === "Approved" && dti < 35) {
-      suggestions.push("You may qualify for better interest rates or terms.");
-    }
-    if (loanType === "Vehicle Finance" && results?.balloonDue > 0) {
-      suggestions.push("Be prepared for the balloon payment at end of term.");
-    }
-
-    return suggestions;
-  };
-
   const handleExportPDF = () => {
     if (!results) return;
-
     const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("Loan Qualification Report", 14, 22);
-    doc.setFontSize(11);
 
+    doc.text("Scend Loan Qualification Result", 14, 15);
     doc.autoTable({
-      startY: 30,
-      head: [["Field", "Value"]],
+      startY: 25,
       body: [
-        ["Loan Type", loanType],
-        ["Monthly Income", `R${income}`],
-        ["Monthly Expenses", `R${expenses}`],
-        ["Loan Amount", `R${amount}`],
-        ["Term (months)", term],
-        ["Interest Rate", `${results.rate.toFixed(2)}%`],
-        ["Monthly Repayment", `R${results.repayment}`],
-        ["Total Repayment", `R${results.totalRepayment}`],
-        ["Loan Cost", `R${results.loanCost}`],
-        ["Disposable Income", `R${results.disposable}`],
-        ["DTI", `${results.dti}% (${results.dtiRisk})`],
-        ["Balloon Due at Term End", `R${results.balloonDue}`],
-        ["Estimated Credit Score", results.estimatedCreditScore],
-        ["Approval Decision", results.approval],
-        ["Suggestions", results.suggestions.join("; ")]
-      ]
+        ["Loan Type", form.loanType],
+        ["Loan Amount", `R${form.amount}`],
+        ["Term", `${form.term} months`],
+        ["Interest Rate", `${results.interestRate.toFixed(2)}%`],
+        ["Monthly Repayment", `R${results.monthlyRepayment.toFixed(2)}`],
+        ["Total Repayment", `R${results.totalRepayment.toFixed(2)}`],
+        ["Loan Cost", `R${results.totalLoanCost.toFixed(2)}`],
+        ["Disposable Income", `R${results.disposable.toFixed(2)}`],
+        ["DTI", `${results.dti.toFixed(1)}% (${results.dtiRisk})`],
+        ["Balloon Due at Term End", `R${results.balloonAmount.toFixed(2)}`],
+        ["Estimated Credit Score", results.creditScore],
+        ["Approval Likelihood", results.likelihood],
+        ["Decision", results.approval],
+        ["Suggestions", results.suggestions]
+      ],
+      theme: "grid"
     });
 
-    doc.save("loan_qualification_report.pdf");
+    doc.save("loan_qualification.pdf");
+  };
+
+  const handleClear = () => {
+    setForm({
+      income: "",
+      expenses: "",
+      amount: "",
+      term: "",
+      loanType: "Personal Loan",
+      balloonPercent: "",
+      deposit: ""
+    });
+    setResults(null);
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-4 bg-white shadow rounded">
-      <div className="flex items-center space-x-4 mb-6">
-        <img src={logo} alt="Scend Logo" className="h-10" />
-        <h2 className="text-xl font-bold text-pink-600">Loan Qualification Tool</h2>
+    <div className="max-w-3xl mx-auto p-6 bg-white shadow-md rounded">
+      <div className="flex items-center mb-6">
+        <img src={logo} alt="Scend Logo" className="h-10 mr-3" />
+        <h1 className="text-2xl font-bold">Loan Qualification Tool</h1>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <select value={loanType} onChange={e => setLoanType(e.target.value)} className="p-2 border rounded">
+        <select
+          name="loanType"
+          value={form.loanType}
+          onChange={handleChange}
+          className="border p-2 rounded"
+        >
           <option>Personal Loan</option>
           <option>Vehicle Finance</option>
           <option>Home Loan</option>
           <option>Credit Card</option>
         </select>
-        <input type="number" placeholder="Monthly Income" value={income} onChange={e => setIncome(e.target.value)} className="p-2 border rounded" />
-        <input type="number" placeholder="Monthly Expenses" value={expenses} onChange={e => setExpenses(e.target.value)} className="p-2 border rounded" />
-        <input type="number" placeholder="Loan Amount" value={amount} onChange={e => setAmount(e.target.value)} className="p-2 border rounded" />
-        <input type="number" placeholder="Term (months)" value={term} onChange={e => setTerm(e.target.value)} className="p-2 border rounded" />
-        {loanType === "Vehicle Finance" && (
+        <input
+          name="income"
+          placeholder="Monthly Income"
+          value={form.income}
+          onChange={handleChange}
+          type="number"
+          className="border p-2 rounded"
+        />
+        <input
+          name="expenses"
+          placeholder="Monthly Expenses"
+          value={form.expenses}
+          onChange={handleChange}
+          type="number"
+          className="border p-2 rounded"
+        />
+        <input
+          name="amount"
+          placeholder="Loan Amount"
+          value={form.amount}
+          onChange={handleChange}
+          type="number"
+          className="border p-2 rounded"
+        />
+        <input
+          name="term"
+          placeholder="Loan Term (months)"
+          value={form.term}
+          onChange={handleChange}
+          type="number"
+          className="border p-2 rounded"
+        />
+        {form.loanType === "Vehicle Finance" && (
           <>
-            <input type="number" placeholder="Balloon Payment (%)" value={balloonPercent} onChange={e => setBalloonPercent(e.target.value)} className="p-2 border rounded" />
-            <input type="number" placeholder="Deposit Amount" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} className="p-2 border rounded" />
+            <input
+              name="balloonPercent"
+              placeholder="Balloon %"
+              value={form.balloonPercent}
+              onChange={handleChange}
+              type="number"
+              className="border p-2 rounded"
+            />
+            <input
+              name="deposit"
+              placeholder="Deposit"
+              value={form.deposit}
+              onChange={handleChange}
+              type="number"
+              className="border p-2 rounded"
+            />
           </>
         )}
-        {loanType === "Home Loan" && (
-          <input type="number" placeholder="Deposit Amount" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} className="p-2 border rounded" />
+        {form.loanType === "Home Loan" && (
+          <input
+            name="deposit"
+            placeholder="Deposit"
+            value={form.deposit}
+            onChange={handleChange}
+            type="number"
+            className="border p-2 rounded"
+          />
         )}
       </div>
 
       <div className="space-x-2 mb-4">
-        <button onClick={handleCalculate} className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">Calculate</button>
-        <button onClick={() => { setIncome(""); setExpenses(""); setAmount(""); setTerm(""); setResults(null); }} className="bg-gray-400 text-white px-4 py-2 rounded">Clear</button>
-        <button onClick={handleExportPDF} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Export PDF</button>
+        <button
+          onClick={handleCalculate}
+          className="bg-pink-600 text-white px-4 py-2 rounded"
+        >
+          Calculate
+        </button>
+        <button
+          onClick={handleClear}
+          className="bg-gray-400 text-white px-4 py-2 rounded"
+        >
+          Clear
+        </button>
+        <button
+          onClick={handleExportPDF}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Export PDF
+        </button>
       </div>
 
       {results && (
-        <div className="space-y-2">
-          <p><strong>Interest Rate:</strong> {results.rate.toFixed(2)}%</p>
-          <p><strong>Monthly Repayment:</strong> R{results.repayment}</p>
-          <p><strong>Total Repayment:</strong> R{results.totalRepayment}</p>
-          <p><strong>Loan Cost:</strong> R{results.loanCost}</p>
-          <p><strong>Disposable Income:</strong> R{results.disposable}</p>
-          <p><strong>DTI:</strong> {results.dti}% <span className="text-xs text-gray-600">({results.dtiRisk})</span></p>
-          {results.balloonDue > 0 && <p><strong>Balloon Due at Term End:</strong> R{results.balloonDue}</p>}
-          <p><strong>Estimated Credit Score:</strong> {results.estimatedCreditScore}</p>
-          <p><strong>Approval Likelihood:</strong> {results.approval === "Approved" ? "High" : results.approval === "Borderline" ? "Moderate" : "Low"}</p>
-          <p><strong>Decision:</strong> <span className={`font-bold ${results.approval === "Approved" ? "text-green-600" : results.approval === "Borderline" ? "text-yellow-600" : "text-red-600"}`}>
-            {results.approval === "Approved" ? "✅ Approved" : results.approval === "Borderline" ? "⚠️ Borderline" : "❌ Declined"}
-          </span></p>
-          {results.suggestions.length > 0 && (
-            <div>
-              <strong>Suggestions:</strong>
-              <ul className="list-disc ml-6">
-                {results.suggestions.map((msg, idx) => <li key={idx}>{msg}</li>)}
-              </ul>
-            </div>
-          )}
+        <div className="space-y-2 mt-6">
+          <p>
+            <strong>Interest Rate:</strong> {results.interestRate.toFixed(2)}%
+          </p>
+          <p>
+            <strong>Monthly Repayment:</strong> R
+            {results.monthlyRepayment.toFixed(2)}
+          </p>
+          <p>
+            <strong>Total Repayment:</strong> R
+            {results.totalRepayment.toFixed(2)}
+          </p>
+          <p>
+            <strong>Loan Cost:</strong> R{results.totalLoanCost.toFixed(2)}
+          </p>
+          <p>
+            <strong>Disposable Income:</strong> R
+            {results.disposable.toFixed(2)}
+          </p>
+          <p>
+            <strong>DTI:</strong> {results.dti.toFixed(1)}% (
+            {results.dtiRisk})
+          </p>
+          <p>
+            <strong>Balloon Due at Term End:</strong> R
+            {results.balloonAmount.toFixed(2)}
+          </p>
+          <p>
+            <strong>Estimated Credit Score:</strong> {results.creditScore}
+          </p>
+          <p>
+            <strong>Approval Likelihood:</strong> {results.likelihood}
+          </p>
+          <p>
+            <strong>
+              Decision:{" "}
+              <span
+                className={`text-white px-2 py-1 rounded ${results.badge}`}
+              >
+                {results.approval}
+              </span>
+            </strong>
+          </p>
+          <p>
+            <strong>Suggestions:</strong> {results.suggestions}
+          </p>
         </div>
       )}
     </div>
