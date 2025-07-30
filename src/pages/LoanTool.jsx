@@ -63,7 +63,16 @@ export default function LoanTool() {
     if (creditScore < 620) suggestions.push("Improve credit profile.");
     if (creditScore >= 700 && dti < 20) suggestions.push("You may qualify for better interest rates or terms.");
     if (loanType === "Vehicle Finance" && balloon > 0) suggestions.push("Ensure you're aware of the balloon payment due at term end.");
-    if (suggestions.length === 0) suggestions.push("You're in a good position. Consider locking in your rate.");
+    if (suggestions.length === 0) {
+  if (dti < 20 && creditScore >= 700) {
+    suggestions.push("You're in a good position. Consider locking in your rate.");
+  } else if (dti >= 35) {
+    suggestions.push("Consider reducing your loan amount or increasing your income for better chances.");
+  } else {
+    suggestions.push("Your profile is borderline. Consider improving your credit score or negotiating better terms.");
+  }
+}
+
 
     setResult({
       interestRate: (interestRate * 100).toFixed(1),
