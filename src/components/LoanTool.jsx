@@ -23,13 +23,12 @@ export default function LoanTool() {
 
     const disposableIncome = monthlyIncome - monthlyExpenses;
 
-    // Estimate credit score if not entered
     const estimatedScore = creditScore
       ? parseInt(creditScore)
       : estimateCreditScore(monthlyIncome, monthlyExpenses);
 
     const interestRate = getInterestRate(loanType, estimatedScore);
-    const cappedRate = Math.min(interestRate, 27.75); // NCA max cap
+    const cappedRate = Math.min(interestRate, 27.75);
     const monthlyRate = cappedRate / 100 / 12;
 
     let balloonValue = 0;
@@ -76,6 +75,13 @@ export default function LoanTool() {
     });
   };
 
+  const estimateCreditScore = (income, expenses) => {
+    const dti = (expenses / income) * 100;
+    if (dti < 30) return 750;
+    if (dti < 45) return 680;
+    return 600;
+  };
+
   const getInterestRate = (type, score) => {
     switch (type) {
       case "Home Loan":
@@ -87,13 +93,6 @@ export default function LoanTool() {
       default:
         return score >= 750 ? 12.5 : score >= 650 ? 18 : 25;
     }
-  };
-
-  const estimateCreditScore = (income, expenses) => {
-    const dti = (expenses / income) * 100;
-    if (dti < 30) return 750;
-    if (dti < 45) return 680;
-    return 600;
   };
 
   const handleClear = () => {
@@ -160,14 +159,14 @@ export default function LoanTool() {
         )}
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 mt-4">
         <button onClick={handleCalculate} className="bg-pink-600 text-white px-4 py-2 rounded">Calculate</button>
-        <button onClick={handleClear} className="bg-gray-500 text-white px-4 py-2 rounded">Clear</button>
+        <button onClick={handleClear} className="bg-gray-600 text-white px-4 py-2 rounded">Clear</button>
         <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2 rounded">Export PDF</button>
       </div>
 
       {result && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-6 space-y-2">
           <h2 className="text-xl font-semibold text-gray-800">Results</h2>
           <div>Monthly Repayment: <strong>R {result.monthlyRepayment.toFixed(2)}</strong></div>
           <div>Balloon Amount (due at end): <strong>R {result.balloonValue.toFixed(2)}</strong></div>
