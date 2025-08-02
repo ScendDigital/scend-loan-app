@@ -1,7 +1,7 @@
 // src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import LoanTool from '@/components/LoanTool'; // ✅ This is correct
+import LoanTool from './components/LoanTool'; // ✅ This is correct
 import Home from './pages/Home';
 import NotFound from './pages/NotFound';
 import AboutUs from './pages/AboutUs';
