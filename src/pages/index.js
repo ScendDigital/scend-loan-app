@@ -1,4 +1,4 @@
-import LoanTool from "../components/LoanTool"; // Or the correct one
+import LoanTool from "../components/LoanTool";
 
 export default function Home() {
   return <LoanTool />;
