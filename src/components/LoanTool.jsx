@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// Dummy change to force Git update — 2025-08-02
+
 const LoanTool = () => {
   const [loanType, setLoanType] = useState("Home Loan");
   const [loanAmount, setLoanAmount] = useState(500000);
