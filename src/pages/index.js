@@ -1,12 +1,5 @@
-import React from "react";
-import LoanTool from "../components/LoanTool";
-
-HEAD
-export default function HomePage() {
-  return <LoanTool />;
-}
+import LoanTool from "../components/LoanTool"; // Or the correct one
 
 export default function Home() {
   return <LoanTool />;
 }
-main
