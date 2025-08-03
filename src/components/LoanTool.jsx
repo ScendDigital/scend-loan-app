@@ -11,7 +11,6 @@ export default function LoanTool() {
   const [balloon, setBalloon] = useState("");
   const [deposit, setDeposit] = useState("");
   const [result, setResult] = useState(null);
-  const [recommendation, setRecommendation] = useState("");
 
   const handleCalculate = () => {
     const loanAmount = parseFloat(amount) || 0;
@@ -56,7 +55,6 @@ export default function LoanTool() {
         : "Declined";
 
     const dtiRisk = dti <= 30 ? "Low" : dti <= 45 ? "Moderate" : "High";
-    const rec = generateRecommendation(approval, dtiRisk, compliant);
 
     setResult({
       loanAmount,
@@ -73,9 +71,8 @@ export default function LoanTool() {
       estimatedScore,
       approval,
       compliant: compliant ? "Yes" : "No",
+      recommendation: generateRecommendation(approval, dtiRisk, compliant),
     });
-
-    setRecommendation(rec);
   };
 
   const estimateCreditScore = (income, expenses) => {
@@ -126,7 +123,6 @@ export default function LoanTool() {
     setBalloon("");
     setDeposit("");
     setResult(null);
-    setRecommendation("");
   };
 
   const handleExport = () => {
@@ -152,7 +148,7 @@ export default function LoanTool() {
         ["Estimated Credit Score", result.estimatedScore],
         ["Compliant", result.compliant],
         ["Decision", result.approval],
-        ["Recommendation", recommendation],
+        ["Recommendation", result.recommendation],
       ],
     });
     doc.save("scend_loan_summary.pdf");
@@ -200,7 +196,7 @@ export default function LoanTool() {
           <div>Disposable Income: <strong>R {result.disposableIncome.toFixed(2)}</strong></div>
           <div>Compliance: <span className={`font-semibold ${result.compliant === "Yes" ? "text-green-600" : "text-red-600"}`}>{result.compliant}</span></div>
           <div>Decision: <span className={`font-semibold ${result.approval === "Approved" ? "text-green-600" : result.approval === "Borderline" ? "text-yellow-600" : "text-red-600"}`}>{result.approval}</span></div>
-          <div className="mt-2 text-sm text-gray-700 italic">{recommendation}</div>
+          <div className="mt-2 text-sm text-gray-700 italic">{result.recommendation}</div>
         </div>
       )}
     </div>
