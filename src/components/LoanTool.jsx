@@ -8,8 +8,8 @@ export default function LoanTool() {
   const [term, setTerm] = useState("");
   const [income, setIncome] = useState("");
   const [expenses, setExpenses] = useState("");
+  const [residual, setResidual] = useState("");
   const [deposit, setDeposit] = useState("");
-  const [balloonPercent, setBalloonPercent] = useState("");
   const [result, setResult] = useState(null);
 
   const calculateCreditScore = (dti, disposableIncome) => {
@@ -32,20 +32,21 @@ export default function LoanTool() {
     const termMonths = parseInt(term) || 0;
     const monthlyIncome = parseFloat(income) || 0;
     const monthlyExpenses = parseFloat(expenses) || 0;
-    const depositAmount = parseFloat(deposit) || 0;
-    const balloonPct = parseFloat(balloonPercent) || 0;
+    const balloonPct = parseFloat(residual) || 0;
+    const depositAmt = parseFloat(deposit) || 0;
 
     let balloonAmount = 0;
-    let finalDeposit = 0;
+    let depositAmount = 0;
 
     if (loanType === "Vehicle Finance") {
       balloonAmount = loanAmount * (balloonPct / 100);
-      finalDeposit = depositAmount;
+      depositAmount = depositAmt;
     } else if (loanType === "Home Loan") {
-      finalDeposit = depositAmount;
+      depositAmount = depositAmt;
     }
 
-    const baseLoan = loanAmount - balloonAmount - finalDeposit;
+    const baseLoan = loanAmount - balloonAmount - depositAmount;
+
     const interestRate = getInterestRate(600, loanType);
     const totalRepayment = baseLoan * Math.pow(1 + interestRate / 100 / 12, termMonths);
     const monthlyRepayment = termMonths > 0 ? totalRepayment / termMonths : 0;
@@ -54,7 +55,9 @@ export default function LoanTool() {
     const disposableIncome = monthlyIncome - monthlyExpenses;
 
     let dtiRisk = "Low";
-    if (disposableIncome <= 0 || dti > 55) {
+    if (disposableIncome <= 0) {
+      dtiRisk = "Very High";
+    } else if (dti > 55) {
       dtiRisk = "Very High";
     } else if (dti > 45) {
       dtiRisk = "High";
@@ -67,6 +70,7 @@ export default function LoanTool() {
     const totalFinalRepayment = baseLoan * Math.pow(1 + finalInterestRate / 100 / 12, termMonths);
     const finalMonthlyRepayment = termMonths > 0 ? totalFinalRepayment / termMonths : 0;
     const loanCost = totalFinalRepayment - baseLoan;
+
     const compliant = finalInterestRate <= 27.75 && disposableIncome > finalMonthlyRepayment;
 
     let approval = "Declined";
@@ -107,8 +111,8 @@ export default function LoanTool() {
     setTerm("");
     setIncome("");
     setExpenses("");
+    setResidual("");
     setDeposit("");
-    setBalloonPercent("");
     setResult(null);
   };
 
@@ -124,15 +128,9 @@ export default function LoanTool() {
   };
 
   return (
-    <h1 className="text-2xl font-bold mb-4 text-scendPink">Scend Loan Tool</h1>
-
-<button className="bg-scendPink text-white px-4 py-2">Calculate</button>
-<button className="bg-buttonGrey text-white px-4 py-2">Clear</button>
-<button className="bg-buttonGreen text-white px-4 py-2">Export PDF</button>
-
-<div className="bg-scendGrey p-4 rounded shadow">
-  {/* Results */}
-</div>
+    <div className="p-4 max-w-3xl mx-auto bg-white rounded shadow">
+      <h1 className="text-2xl font-bold mb-4 text-scendPink">Scend Loan Tool</h1>
+      <select value={loanType} onChange={(e) => setLoanType(e.target.value)} className="border p-2 mb-2 w-full">
         <option>Personal Loan</option>
         <option>Vehicle Finance</option>
         <option>Home Loan</option>
@@ -142,20 +140,20 @@ export default function LoanTool() {
       <input type="number" placeholder="Term (months)" value={term} onChange={(e) => setTerm(e.target.value)} className="border p-2 mb-2 w-full" />
       <input type="number" placeholder="Monthly Income" value={income} onChange={(e) => setIncome(e.target.value)} className="border p-2 mb-2 w-full" />
       <input type="number" placeholder="Monthly Expenses" value={expenses} onChange={(e) => setExpenses(e.target.value)} className="border p-2 mb-2 w-full" />
+      {loanType === "Vehicle Finance" && (
+        <input type="number" placeholder="Balloon Payment %" value={residual} onChange={(e) => setResidual(e.target.value)} className="border p-2 mb-2 w-full" />
+      )}
       {(loanType === "Vehicle Finance" || loanType === "Home Loan") && (
         <input type="number" placeholder="Deposit Amount" value={deposit} onChange={(e) => setDeposit(e.target.value)} className="border p-2 mb-2 w-full" />
       )}
-      {loanType === "Vehicle Finance" && (
-        <input type="number" placeholder="Balloon %" value={balloonPercent} onChange={(e) => setBalloonPercent(e.target.value)} className="border p-2 mb-2 w-full" />
-      )}
       <div className="space-x-2 mb-4">
-        <button onClick={handleCalculate} className="bg-pink-600 text-white px-4 py-2">Calculate</button>
-        <button onClick={handleClear} className="bg-gray-500 text-white px-4 py-2">Clear</button>
-        <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2">Export PDF</button>
+        <button onClick={handleCalculate} className="bg-scendPink text-white px-4 py-2">Calculate</button>
+        <button onClick={handleClear} className="bg-buttonGrey text-white px-4 py-2">Clear</button>
+        <button onClick={handleExport} className="bg-buttonGreen text-white px-4 py-2">Export PDF</button>
       </div>
       {result && (
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-2 text-pink-600">Results</h2>
+        <div className="bg-scendGrey p-4 rounded shadow">
+          <h2 className="text-xl font-semibold mb-2">Results</h2>
           <p><strong>Interest Rate:</strong> {result.interestRate}%</p>
           <p><strong>Monthly Repayment:</strong> R {result.monthlyRepayment}</p>
           <p><strong>Balloon Amount (due at end):</strong> R {result.balloonAmount}</p>
