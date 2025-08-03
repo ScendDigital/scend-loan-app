@@ -23,9 +23,10 @@ export default function LoanTool() {
 
     const disposableIncome = monthlyIncome - monthlyExpenses;
 
-    const estimatedScore = creditScore
-      ? parseInt(creditScore)
-      : estimateCreditScore(monthlyIncome, monthlyExpenses);
+    const estimatedScore =
+      creditScore.trim() === ""
+        ? estimateCreditScore(monthlyIncome, monthlyExpenses)
+        : parseInt(creditScore);
 
     const interestRate = getInterestRate(loanType, estimatedScore);
     const cappedRate = Math.min(interestRate, 27.75);
@@ -49,11 +50,12 @@ export default function LoanTool() {
     const affordability = monthlyRepayment <= disposableIncome;
     const compliant = dti <= 55 && affordability && cappedRate <= 27.75;
 
-    const approval = dti <= 40 && affordability
-      ? "Approved"
-      : dti <= 55 && affordability
-      ? "Borderline"
-      : "Declined";
+    const approval =
+      dti <= 40 && affordability
+        ? "Approved"
+        : dti <= 55 && affordability
+        ? "Borderline"
+        : "Declined";
 
     const dtiRisk = dti <= 30 ? "Low" : dti <= 45 ? "Moderate" : "High";
 
