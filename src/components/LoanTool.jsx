@@ -44,19 +44,30 @@ export default function LoanTool() {
     const loanCost = totalRepayment - loanAmount;
 
     const dti = (monthlyRepayment / monthlyIncome) * 100;
+
+    // ✅ Real-world logic applied
+    const dtiRisk =
+      disposableIncome <= 0
+        ? "High"
+        : dti <= 30
+        ? "Low"
+        : dti <= 45
+        ? "Moderate"
+        : dti <= 55
+        ? "High"
+        : "Very High";
+
     const affordability = monthlyRepayment <= disposableIncome;
     const compliant = dti <= 55 && affordability && interestRate <= 27.75;
 
-    const approval =
-      dti <= 40 && affordability
-        ? "Approved"
-        : dti <= 55 && affordability
-        ? "Borderline"
-        : "Declined";
+    // ✅ Updated approval logic
+    let approval = "Declined";
+    if (dti <= 40 && disposableIncome > 0) {
+      approval = "Approved";
+    } else if (dti <= 55 && disposableIncome > 0) {
+      approval = "Borderline";
+    }
 
-    const dtiRisk = dti <= 30 ? "Low" : dti <= 45 ? "Moderate" : "High";
-
-    // ✅ Fix applied: Pass "Yes"/"No" to match what generateRecommendation expects
     const complianceStatus = compliant ? "Yes" : "No";
     const recommendation = generateRecommendation(approval, dtiRisk, complianceStatus);
 
