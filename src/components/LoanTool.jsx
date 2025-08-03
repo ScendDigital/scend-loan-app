@@ -32,8 +32,8 @@ export default function LoanTool() {
     const termMonths = parseInt(term) || 0;
     const monthlyIncome = parseFloat(income) || 0;
     const monthlyExpenses = parseFloat(expenses) || 0;
-    const depositAmount = parseFloat(deposit) || 0;
-    const balloonAmount = parseFloat(balloon) || 0;
+    const depositAmount = loanType !== "Personal Loan" && loanType !== "Credit Card" ? parseFloat(deposit) || 0 : 0;
+    const balloonAmount = loanType === "Vehicle Finance" ? parseFloat(balloon) || 0 : 0;
 
     const baseLoan = loanAmount - depositAmount - balloonAmount;
     const interestRate = getInterestRate(600, loanType); // placeholder score until real is calculated
@@ -58,9 +58,7 @@ export default function LoanTool() {
     const finalInterestRate = getInterestRate(creditScore, loanType);
     const totalFinalRepayment = baseLoan * Math.pow(1 + finalInterestRate / 100 / 12, termMonths);
     const finalMonthlyRepayment = termMonths > 0 ? totalFinalRepayment / termMonths : 0;
-
     const loanCost = totalFinalRepayment - baseLoan;
-
     const compliant = finalInterestRate <= 27.75 && disposableIncome > finalMonthlyRepayment;
 
     let approval = "Declined";
@@ -158,21 +156,24 @@ export default function LoanTool() {
         onChange={(e) => setExpenses(e.target.value)}
         className="border p-2 mb-2 w-full"
       />
-      <input
-        type="number"
-        placeholder="Deposit Amount (if any)"
-        value={deposit}
-        onChange={(e) => setDeposit(e.target.value)}
-        className="border p-2 mb-2 w-full"
-      />
-      <input
-        type="number"
-        placeholder="Balloon Payment (if any)"
-        value={balloon}
-        onChange={(e) => setBalloon(e.target.value)}
-        className="border p-2 mb-2 w-full"
-      />
-
+      {(loanType === "Home Loan" || loanType === "Vehicle Finance") && (
+        <input
+          type="number"
+          placeholder="Deposit Amount"
+          value={deposit}
+          onChange={(e) => setDeposit(e.target.value)}
+          className="border p-2 mb-2 w-full"
+        />
+      )}
+      {loanType === "Vehicle Finance" && (
+        <input
+          type="number"
+          placeholder="Balloon Payment Amount"
+          value={balloon}
+          onChange={(e) => setBalloon(e.target.value)}
+          className="border p-2 mb-2 w-full"
+        />
+      )}
       <div className="space-x-2 mb-4">
         <button onClick={handleCalculate} className="bg-blue-500 text-white px-4 py-2">Calculate</button>
         <button onClick={handleClear} className="bg-gray-500 text-white px-4 py-2">Clear</button>
