@@ -8,10 +8,10 @@ export default function LoanTool() {
   const [term, setTerm] = useState("");
   const [income, setIncome] = useState("");
   const [expenses, setExpenses] = useState("");
-  const [creditScore, setCreditScore] = useState("");
   const [balloon, setBalloon] = useState("");
   const [deposit, setDeposit] = useState("");
   const [result, setResult] = useState(null);
+  const [recommendation, setRecommendation] = useState("");
 
   const handleCalculate = () => {
     const loanAmount = parseFloat(amount) || 0;
@@ -23,14 +23,9 @@ export default function LoanTool() {
 
     const disposableIncome = monthlyIncome - monthlyExpenses;
 
-    const estimatedScore =
-      creditScore.trim() === ""
-        ? estimateCreditScore(monthlyIncome, monthlyExpenses)
-        : parseInt(creditScore);
-
-    const interestRate = getInterestRate(loanType, estimatedScore);
-    const cappedRate = Math.min(interestRate, 27.75);
-    const monthlyRate = cappedRate / 100 / 12;
+    const estimatedScore = estimateCreditScore(monthlyIncome, monthlyExpenses);
+    const interestRate = Math.min(getInterestRate(loanType, estimatedScore), 27.75);
+    const monthlyRate = interestRate / 100 / 12;
 
     let balloonValue = 0;
     if (loanType === "Vehicle Finance") {
@@ -38,7 +33,6 @@ export default function LoanTool() {
     }
 
     const principal = loanAmount - depositAmount - balloonValue;
-
     const monthlyRepayment =
       (principal * monthlyRate) /
       (1 - Math.pow(1 + monthlyRate, -termMonths));
@@ -48,7 +42,7 @@ export default function LoanTool() {
 
     const dti = (monthlyRepayment / monthlyIncome) * 100;
     const affordability = monthlyRepayment <= disposableIncome;
-    const compliant = dti <= 55 && affordability && cappedRate <= 27.75;
+    const compliant = dti <= 55 && affordability && interestRate <= 27.75;
 
     const approval =
       dti <= 40 && affordability
@@ -59,10 +53,12 @@ export default function LoanTool() {
 
     const dtiRisk = dti <= 30 ? "Low" : dti <= 45 ? "Moderate" : "High";
 
+    const rec = generateRecommendation(approval, dtiRisk, compliant);
+
     setResult({
       loanAmount,
       termMonths,
-      interestRate: cappedRate,
+      interestRate,
       depositAmount,
       balloonValue,
       monthlyRepayment,
@@ -75,6 +71,8 @@ export default function LoanTool() {
       approval,
       compliant: compliant ? "Yes" : "No",
     });
+
+    setRecommendation(rec);
   };
 
   const estimateCreditScore = (income, expenses) => {
@@ -97,16 +95,26 @@ export default function LoanTool() {
     }
   };
 
+  const generateRecommendation = (approval, dtiRisk, compliant) => {
+    if (approval === "Approved" && compliant === "Yes") {
+      return "Your loan is approved. Ensure you maintain your low expense-to-income ratio.";
+    } else if (approval === "Borderline") {
+      return "Your loan is borderline. Consider increasing your deposit or reducing the loan term.";
+    } else {
+      return "Your loan was declined. Consider lowering your expenses, increasing income, or choosing a lower loan amount.";
+    }
+  };
+
   const handleClear = () => {
     setLoanType("Personal Loan");
     setAmount("");
     setTerm("");
     setIncome("");
     setExpenses("");
-    setCreditScore("");
     setBalloon("");
     setDeposit("");
     setResult(null);
+    setRecommendation("");
   };
 
   const handleExport = () => {
@@ -132,6 +140,7 @@ export default function LoanTool() {
         ["Estimated Credit Score", result.estimatedScore],
         ["Compliant", result.compliant],
         ["Decision", result.approval],
+        ["Recommendation", recommendation],
       ],
     });
     doc.save("scend_loan_summary.pdf");
@@ -152,7 +161,6 @@ export default function LoanTool() {
         <input type="number" placeholder="Term (Months)" value={term} onChange={(e) => setTerm(e.target.value)} className="border p-2 rounded" />
         <input type="number" placeholder="Monthly Income" value={income} onChange={(e) => setIncome(e.target.value)} className="border p-2 rounded" />
         <input type="number" placeholder="Monthly Expenses" value={expenses} onChange={(e) => setExpenses(e.target.value)} className="border p-2 rounded" />
-        <input type="number" placeholder="Credit Score (Optional)" value={creditScore} onChange={(e) => setCreditScore(e.target.value)} className="border p-2 rounded" />
         {loanType === "Vehicle Finance" && (
           <input type="number" placeholder="Balloon (%)" value={balloon} onChange={(e) => setBalloon(e.target.value)} className="border p-2 rounded" />
         )}
@@ -170,6 +178,7 @@ export default function LoanTool() {
       {result && (
         <div className="mt-6 space-y-2">
           <h2 className="text-xl font-semibold text-gray-800">Results</h2>
+          <div>Interest Rate: <strong>{result.interestRate.toFixed(2)}%</strong></div>
           <div>Monthly Repayment: <strong>R {result.monthlyRepayment.toFixed(2)}</strong></div>
           <div>Balloon Amount (due at end): <strong>R {result.balloonValue.toFixed(2)}</strong></div>
           <div>Total Repayment: <strong>R {result.totalRepayment.toFixed(2)}</strong></div>
@@ -179,6 +188,7 @@ export default function LoanTool() {
           <div>Disposable Income: <strong>R {result.disposableIncome.toFixed(2)}</strong></div>
           <div>Compliance: <span className={`font-semibold ${result.compliant === "Yes" ? "text-green-600" : "text-red-600"}`}>{result.compliant}</span></div>
           <div>Decision: <span className={`font-semibold ${result.approval === "Approved" ? "text-green-600" : result.approval === "Borderline" ? "text-yellow-600" : "text-red-600"}`}>{result.approval}</span></div>
+          <div className="mt-2 text-sm text-gray-700 italic">{recommendation}</div>
         </div>
       )}
     </div>
