@@ -6,9 +6,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'card': '#ffffff',
-        'card-foreground': '#1f2937',
-        'border': '#e5e7eb',
+        scendPink: "#ff4f8b",
+        scendGrey: "#f3f4f6",
+        textDark: "#1f2937",
+        buttonBlue: "#3b82f6",
+        buttonGreen: "#10b981",
+        buttonGrey: "#6b7280"
       },
     },
   },

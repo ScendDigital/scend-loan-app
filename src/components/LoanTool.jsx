@@ -36,31 +36,45 @@ export default function LoanTool() {
     const balloonPct = parseFloat(balloonPercent) || 0;
 
     let balloonAmount = 0;
+    let finalDeposit = 0;
+
     if (loanType === "Vehicle Finance") {
       balloonAmount = loanAmount * (balloonPct / 100);
+      finalDeposit = depositAmount;
+    } else if (loanType === "Home Loan") {
+      finalDeposit = depositAmount;
     }
 
-    const baseLoan = loanAmount - depositAmount - balloonAmount;
-    const estimatedScore = calculateCreditScore(
-      monthlyIncome > 0 ? (baseLoan / termMonths) / monthlyIncome * 100 : 0,
-      monthlyIncome - monthlyExpenses
-    );
-    const interestRate = getInterestRate(estimatedScore, loanType);
+    const baseLoan = loanAmount - balloonAmount - finalDeposit;
+    const interestRate = getInterestRate(600, loanType);
     const totalRepayment = baseLoan * Math.pow(1 + interestRate / 100 / 12, termMonths);
     const monthlyRepayment = termMonths > 0 ? totalRepayment / termMonths : 0;
+
     const dti = monthlyIncome > 0 ? (monthlyRepayment / monthlyIncome) * 100 : 0;
     const disposableIncome = monthlyIncome - monthlyExpenses;
 
     let dtiRisk = "Low";
-    if (disposableIncome <= 0) dtiRisk = "Very High";
-    else if (dti > 55) dtiRisk = "Very High";
-    else if (dti > 45) dtiRisk = "High";
-    else if (dti > 30) dtiRisk = "Moderate";
+    if (disposableIncome <= 0 || dti > 55) {
+      dtiRisk = "Very High";
+    } else if (dti > 45) {
+      dtiRisk = "High";
+    } else if (dti > 30) {
+      dtiRisk = "Moderate";
+    }
 
-    const compliant = interestRate <= 27.75 && disposableIncome > monthlyRepayment;
+    const creditScore = calculateCreditScore(dti, disposableIncome);
+    const finalInterestRate = getInterestRate(creditScore, loanType);
+    const totalFinalRepayment = baseLoan * Math.pow(1 + finalInterestRate / 100 / 12, termMonths);
+    const finalMonthlyRepayment = termMonths > 0 ? totalFinalRepayment / termMonths : 0;
+    const loanCost = totalFinalRepayment - baseLoan;
+    const compliant = finalInterestRate <= 27.75 && disposableIncome > finalMonthlyRepayment;
+
     let approval = "Declined";
-    if (dti <= 40 && disposableIncome > monthlyRepayment) approval = "Approved";
-    else if (dti <= 55 && disposableIncome > monthlyRepayment) approval = "Borderline";
+    if (dti <= 40 && disposableIncome > finalMonthlyRepayment) {
+      approval = "Approved";
+    } else if (dti <= 55 && disposableIncome > finalMonthlyRepayment) {
+      approval = "Borderline";
+    }
 
     const generateRecommendation = (approval, dtiRisk, compliant) => {
       if (approval === "Approved" && compliant === "Yes") {
@@ -73,12 +87,12 @@ export default function LoanTool() {
     };
 
     setResult({
-      monthlyRepayment: monthlyRepayment.toFixed(2),
-      totalRepayment: totalRepayment.toFixed(2),
-      loanCost: (totalRepayment - baseLoan).toFixed(2),
+      monthlyRepayment: finalMonthlyRepayment.toFixed(2),
+      totalRepayment: totalFinalRepayment.toFixed(2),
+      loanCost: loanCost.toFixed(2),
       balloonAmount: balloonAmount.toFixed(2),
-      interestRate: interestRate.toFixed(2),
-      creditScore: estimatedScore,
+      interestRate: finalInterestRate.toFixed(2),
+      creditScore,
       dti: dti.toFixed(2),
       dtiRisk,
       disposableIncome: disposableIncome.toFixed(2),
@@ -110,13 +124,15 @@ export default function LoanTool() {
   };
 
   return (
-    <div className="p-4 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4 text-pink-600">Scend Loan Tool</h1>
-      <select
-        value={loanType}
-        onChange={(e) => setLoanType(e.target.value)}
-        className="border p-2 mb-2 w-full text-gray-800"
-      >
+    <h1 className="text-2xl font-bold mb-4 text-scendPink">Scend Loan Tool</h1>
+
+<button className="bg-scendPink text-white px-4 py-2">Calculate</button>
+<button className="bg-buttonGrey text-white px-4 py-2">Clear</button>
+<button className="bg-buttonGreen text-white px-4 py-2">Export PDF</button>
+
+<div className="bg-scendGrey p-4 rounded shadow">
+  {/* Results */}
+</div>
         <option>Personal Loan</option>
         <option>Vehicle Finance</option>
         <option>Home Loan</option>
@@ -126,18 +142,17 @@ export default function LoanTool() {
       <input type="number" placeholder="Term (months)" value={term} onChange={(e) => setTerm(e.target.value)} className="border p-2 mb-2 w-full" />
       <input type="number" placeholder="Monthly Income" value={income} onChange={(e) => setIncome(e.target.value)} className="border p-2 mb-2 w-full" />
       <input type="number" placeholder="Monthly Expenses" value={expenses} onChange={(e) => setExpenses(e.target.value)} className="border p-2 mb-2 w-full" />
-      {(loanType === "Home Loan" || loanType === "Vehicle Finance") && (
+      {(loanType === "Vehicle Finance" || loanType === "Home Loan") && (
         <input type="number" placeholder="Deposit Amount" value={deposit} onChange={(e) => setDeposit(e.target.value)} className="border p-2 mb-2 w-full" />
       )}
       {loanType === "Vehicle Finance" && (
         <input type="number" placeholder="Balloon %" value={balloonPercent} onChange={(e) => setBalloonPercent(e.target.value)} className="border p-2 mb-2 w-full" />
       )}
       <div className="space-x-2 mb-4">
-        <button onClick={handleCalculate} className="bg-pink-600 text-white px-4 py-2 rounded">Calculate</button>
-        <button onClick={handleClear} className="bg-gray-600 text-white px-4 py-2 rounded">Clear</button>
-        <button onClick={handleExport} className="bg-pink-700 text-white px-4 py-2 rounded">Export PDF</button>
+        <button onClick={handleCalculate} className="bg-pink-600 text-white px-4 py-2">Calculate</button>
+        <button onClick={handleClear} className="bg-gray-500 text-white px-4 py-2">Clear</button>
+        <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2">Export PDF</button>
       </div>
-
       {result && (
         <div className="bg-white p-4 rounded shadow">
           <h2 className="text-xl font-semibold mb-2 text-pink-600">Results</h2>
