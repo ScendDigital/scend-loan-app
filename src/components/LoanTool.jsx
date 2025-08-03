@@ -22,9 +22,13 @@ export default function LoanTool() {
     const depositAmount = parseFloat(deposit) || 0;
 
     const disposableIncome = monthlyIncome - monthlyExpenses;
-
     const estimatedScore = estimateCreditScore(monthlyIncome, monthlyExpenses);
-    const interestRate = Math.min(getInterestRate(loanType, estimatedScore), 27.75);
+    const dtiEstimate = ((monthlyExpenses + 1) / (monthlyIncome + 1)) * 100;
+
+    const interestRate = Math.min(
+      getInterestRate(loanType, estimatedScore, dtiEstimate),
+      27.75
+    );
     const monthlyRate = interestRate / 100 / 12;
 
     let balloonValue = 0;
@@ -52,7 +56,6 @@ export default function LoanTool() {
         : "Declined";
 
     const dtiRisk = dti <= 30 ? "Low" : dti <= 45 ? "Moderate" : "High";
-
     const rec = generateRecommendation(approval, dtiRisk, compliant);
 
     setResult({
@@ -82,27 +85,36 @@ export default function LoanTool() {
     return 600;
   };
 
-  const getInterestRate = (type, score) => {
-    switch (type) {
-      case "Home Loan":
-        return score >= 750 ? 9.5 : score >= 650 ? 11.5 : 14.5;
-      case "Vehicle Finance":
-        return score >= 750 ? 10.25 : score >= 650 ? 12.75 : 15.75;
-      case "Credit Card":
-        return score >= 750 ? 14 : score >= 650 ? 18 : 24;
-      default:
-        return score >= 750 ? 12.5 : score >= 650 ? 18 : 25;
+  const getInterestRate = (type, score, dti) => {
+    if (type === "Home Loan") {
+      if (score >= 750 && dti <= 35) return 9.5;
+      if (score >= 650 && dti <= 45) return 11.5;
+      return 14.5;
     }
+    if (type === "Vehicle Finance") {
+      if (score >= 750 && dti <= 35) return 10.25;
+      if (score >= 650 && dti <= 45) return 12.75;
+      return 15.75;
+    }
+    if (type === "Credit Card") {
+      if (score >= 750) return 14;
+      if (score >= 650) return 18;
+      return 24;
+    }
+    // Personal Loan
+    if (score >= 700 && dti <= 35) return 13.5;
+    if (score >= 650 && dti <= 45) return 18;
+    return 22.75;
   };
 
   const generateRecommendation = (approval, dtiRisk, compliant) => {
     if (approval === "Approved" && compliant === "Yes") {
-      return "Your loan is approved. Ensure you maintain your low expense-to-income ratio.";
-    } else if (approval === "Borderline") {
-      return "Your loan is borderline. Consider increasing your deposit or reducing the loan term.";
-    } else {
-      return "Your loan was declined. Consider lowering your expenses, increasing income, or choosing a lower loan amount.";
+      return "Your loan is approved. Great work keeping your finances healthy!";
     }
+    if (approval === "Borderline") {
+      return "Your loan is borderline. Improve approval chances by reducing expenses or increasing deposit.";
+    }
+    return "Your loan was declined. Consider lowering your expenses, increasing your income, or reducing the loan amount.";
   };
 
   const handleClear = () => {
