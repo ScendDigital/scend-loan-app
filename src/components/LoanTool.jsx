@@ -8,6 +8,8 @@ export default function LoanTool() {
   const [term, setTerm] = useState("");
   const [income, setIncome] = useState("");
   const [expenses, setExpenses] = useState("");
+  const [deposit, setDeposit] = useState("");
+  const [balloon, setBalloon] = useState("");
   const [result, setResult] = useState(null);
 
   const calculateCreditScore = (dti, disposableIncome) => {
@@ -30,18 +32,13 @@ export default function LoanTool() {
     const termMonths = parseInt(term) || 0;
     const monthlyIncome = parseFloat(income) || 0;
     const monthlyExpenses = parseFloat(expenses) || 0;
+    const depositAmount = parseFloat(deposit) || 0;
+    const balloonAmount = parseFloat(balloon) || 0;
 
-    let balloonPercentage = 0;
-    let depositAmount = 0;
-    if (loanType === "Vehicle Finance") balloonPercentage = 0.3;
-    if (loanType === "Home Loan") depositAmount = loanAmount * 0.1;
-
-    const balloonAmount = loanAmount * balloonPercentage;
-    const baseLoan = loanAmount - balloonAmount - depositAmount;
-
-    const estimatedRepayment = baseLoan * (1 + 0.2);
-    const monthlyRepayment =
-      termMonths > 0 ? estimatedRepayment / termMonths : 0;
+    const baseLoan = loanAmount - depositAmount - balloonAmount;
+    const interestRate = getInterestRate(600, loanType); // placeholder score until real is calculated
+    const totalRepayment = baseLoan * Math.pow(1 + interestRate / 100 / 12, termMonths);
+    const monthlyRepayment = termMonths > 0 ? totalRepayment / termMonths : 0;
 
     const dti = monthlyIncome > 0 ? (monthlyRepayment / monthlyIncome) * 100 : 0;
     const disposableIncome = monthlyIncome - monthlyExpenses;
@@ -58,14 +55,13 @@ export default function LoanTool() {
     }
 
     const creditScore = calculateCreditScore(dti, disposableIncome);
-    const interestRate = getInterestRate(creditScore, loanType);
+    const finalInterestRate = getInterestRate(creditScore, loanType);
+    const totalFinalRepayment = baseLoan * Math.pow(1 + finalInterestRate / 100 / 12, termMonths);
+    const finalMonthlyRepayment = termMonths > 0 ? totalFinalRepayment / termMonths : 0;
 
-    const totalRepayment = baseLoan * Math.pow(1 + interestRate / 100 / 12, termMonths);
-    const finalMonthlyRepayment = termMonths > 0 ? totalRepayment / termMonths : 0;
+    const loanCost = totalFinalRepayment - baseLoan;
 
-    const loanCost = totalRepayment - baseLoan;
-
-    const compliant = interestRate <= 27.75 && disposableIncome > finalMonthlyRepayment;
+    const compliant = finalInterestRate <= 27.75 && disposableIncome > finalMonthlyRepayment;
 
     let approval = "Declined";
     if (dti <= 40 && disposableIncome > finalMonthlyRepayment) {
@@ -86,10 +82,10 @@ export default function LoanTool() {
 
     setResult({
       monthlyRepayment: finalMonthlyRepayment.toFixed(2),
-      totalRepayment: totalRepayment.toFixed(2),
+      totalRepayment: totalFinalRepayment.toFixed(2),
       loanCost: loanCost.toFixed(2),
       balloonAmount: balloonAmount.toFixed(2),
-      interestRate: interestRate.toFixed(2),
+      interestRate: finalInterestRate.toFixed(2),
       creditScore,
       dti: dti.toFixed(2),
       dtiRisk,
@@ -105,6 +101,8 @@ export default function LoanTool() {
     setTerm("");
     setIncome("");
     setExpenses("");
+    setDeposit("");
+    setBalloon("");
     setResult(null);
   };
 
@@ -160,6 +158,21 @@ export default function LoanTool() {
         onChange={(e) => setExpenses(e.target.value)}
         className="border p-2 mb-2 w-full"
       />
+      <input
+        type="number"
+        placeholder="Deposit Amount (if any)"
+        value={deposit}
+        onChange={(e) => setDeposit(e.target.value)}
+        className="border p-2 mb-2 w-full"
+      />
+      <input
+        type="number"
+        placeholder="Balloon Payment (if any)"
+        value={balloon}
+        onChange={(e) => setBalloon(e.target.value)}
+        className="border p-2 mb-2 w-full"
+      />
+
       <div className="space-x-2 mb-4">
         <button onClick={handleCalculate} className="bg-blue-500 text-white px-4 py-2">Calculate</button>
         <button onClick={handleClear} className="bg-gray-500 text-white px-4 py-2">Clear</button>
