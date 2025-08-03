@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import "jspdf-autotable";
 
 export default function LoanTool() {
   const [loanType, setLoanType] = useState("Personal Loan");
@@ -8,213 +8,178 @@ export default function LoanTool() {
   const [term, setTerm] = useState("");
   const [income, setIncome] = useState("");
   const [expenses, setExpenses] = useState("");
-  const [balloon, setBalloon] = useState("");
-  const [deposit, setDeposit] = useState("");
   const [result, setResult] = useState(null);
+
+  const calculateCreditScore = (dti, disposableIncome) => {
+    if (dti < 20 && disposableIncome > 3000) return 680;
+    if (dti < 30 && disposableIncome > 2000) return 640;
+    if (dti < 40 && disposableIncome > 1000) return 600;
+    return 550;
+  };
+
+  const getInterestRate = (score, type) => {
+    if (type === "Home Loan") return 11.75;
+    if (score >= 680) return 18;
+    if (score >= 640) return 21;
+    if (score >= 600) return 23.5;
+    return 27.75;
+  };
 
   const handleCalculate = () => {
     const loanAmount = parseFloat(amount) || 0;
     const termMonths = parseInt(term) || 0;
     const monthlyIncome = parseFloat(income) || 0;
     const monthlyExpenses = parseFloat(expenses) || 0;
-    const balloonPercent = parseFloat(balloon) || 0;
-    const depositAmount = parseFloat(deposit) || 0;
 
+    let balloonPercentage = 0;
+    let depositAmount = 0;
+    if (loanType === "Vehicle Finance") balloonPercentage = 0.3;
+    if (loanType === "Home Loan") depositAmount = loanAmount * 0.1;
+
+    const balloonAmount = loanAmount * balloonPercentage;
+    const baseLoan = loanAmount - balloonAmount - depositAmount;
+
+    const estimatedRepayment = baseLoan * (1 + 0.2);
+    const monthlyRepayment =
+      termMonths > 0 ? estimatedRepayment / termMonths : 0;
+
+    const dti = monthlyIncome > 0 ? (monthlyRepayment / monthlyIncome) * 100 : 0;
     const disposableIncome = monthlyIncome - monthlyExpenses;
-    const estimatedScore = estimateCreditScore(monthlyIncome, monthlyExpenses);
-    const dtiEstimate = ((monthlyExpenses + 1) / (monthlyIncome + 1)) * 100;
 
-    const interestRate = Math.min(
-      getInterestRate(loanType, estimatedScore, dtiEstimate),
-      27.75
-    );
-    const monthlyRate = interestRate / 100 / 12;
-
-    let balloonValue = 0;
-    if (loanType === "Vehicle Finance") {
-      balloonValue = loanAmount * (balloonPercent / 100);
+    let dtiRisk = "Low";
+    if (disposableIncome <= 0) {
+      dtiRisk = "Very High";
+    } else if (dti > 55) {
+      dtiRisk = "Very High";
+    } else if (dti > 45) {
+      dtiRisk = "High";
+    } else if (dti > 30) {
+      dtiRisk = "Moderate";
     }
 
-    const principal = loanAmount - depositAmount - balloonValue;
-    const monthlyRepayment =
-      (principal * monthlyRate) /
-      (1 - Math.pow(1 + monthlyRate, -termMonths));
+    const creditScore = calculateCreditScore(dti, disposableIncome);
+    const interestRate = getInterestRate(creditScore, loanType);
 
-    const totalRepayment = monthlyRepayment * termMonths + balloonValue;
-    const loanCost = totalRepayment - loanAmount;
+    const totalRepayment = baseLoan * Math.pow(1 + interestRate / 100 / 12, termMonths);
+    const finalMonthlyRepayment = termMonths > 0 ? totalRepayment / termMonths : 0;
 
-    const dti = (monthlyRepayment / monthlyIncome) * 100;
+    const loanCost = totalRepayment - baseLoan;
 
-    // ✅ Updated DTI Risk logic (based ONLY on DTI%)
-    const dtiRisk =
-      dti <= 30
-        ? "Low"
-        : dti <= 45
-        ? "Moderate"
-        : dti <= 55
-        ? "High"
-        : "Very High";
+    const compliant = interestRate <= 27.75 && disposableIncome > finalMonthlyRepayment;
 
-    // ✅ Approval logic based on DTI and Disposable Income
     let approval = "Declined";
-    if (dti <= 40 && disposableIncome > 0) {
+    if (dti <= 40 && disposableIncome > finalMonthlyRepayment) {
       approval = "Approved";
-    } else if (dti <= 55 && disposableIncome > 0) {
+    } else if (dti <= 55 && disposableIncome > finalMonthlyRepayment) {
       approval = "Borderline";
     }
 
-    // ✅ Compliance still enforced
-    const affordability = monthlyRepayment <= disposableIncome;
-    const compliant = dti <= 55 && affordability && interestRate <= 27.75;
-    const complianceStatus = compliant ? "Yes" : "No";
-
-    const recommendation = generateRecommendation(
-      approval,
-      dtiRisk,
-      complianceStatus
-    );
+    const generateRecommendation = (approval, dtiRisk, compliant) => {
+      if (approval === "Approved" && compliant === "Yes") {
+        return "Your loan is approved. Great work keeping your finances healthy!";
+      }
+      if (approval === "Borderline") {
+        return "Your loan is borderline. Improve approval chances by reducing expenses or increasing deposit.";
+      }
+      return "Your loan was declined. Consider lowering your expenses, increasing your income, or reducing the loan amount.";
+    };
 
     setResult({
-      loanAmount,
-      termMonths,
-      interestRate,
-      depositAmount,
-      balloonValue,
-      monthlyRepayment,
-      totalRepayment,
-      loanCost,
-      disposableIncome,
-      dti,
+      monthlyRepayment: finalMonthlyRepayment.toFixed(2),
+      totalRepayment: totalRepayment.toFixed(2),
+      loanCost: loanCost.toFixed(2),
+      balloonAmount: balloonAmount.toFixed(2),
+      interestRate: interestRate.toFixed(2),
+      creditScore,
+      dti: dti.toFixed(2),
       dtiRisk,
-      estimatedScore,
+      disposableIncome: disposableIncome.toFixed(2),
+      compliant: compliant ? "Yes" : "No",
       approval,
-      compliant: complianceStatus,
-      recommendation,
+      recommendation: generateRecommendation(approval, dtiRisk, compliant ? "Yes" : "No"),
     });
   };
 
-  const estimateCreditScore = (income, expenses) => {
-    const dti = (expenses / income) * 100;
-    if (dti < 30) return 750;
-    if (dti < 45) return 680;
-    return 600;
-  };
-
-  const getInterestRate = (type, score, dti) => {
-    if (type === "Home Loan") {
-      if (score >= 750 && dti <= 35) return 9.5;
-      if (score >= 650 && dti <= 45) return 11.5;
-      return 14.5;
-    }
-    if (type === "Vehicle Finance") {
-      if (score >= 750 && dti <= 35) return 10.25;
-      if (score >= 650 && dti <= 45) return 12.75;
-      return 15.75;
-    }
-    if (type === "Credit Card") {
-      if (score >= 750) return 14;
-      if (score >= 650) return 18;
-      return 24;
-    }
-    // Personal Loan
-    if (score >= 700 && dti <= 35) return 13.5;
-    if (score >= 650 && dti <= 45) return 18;
-    return 22.75;
-  };
-
-  const generateRecommendation = (approval, dtiRisk, compliant) => {
-    if (approval === "Approved" && compliant === "Yes") {
-      return "Your loan is approved. Great work keeping your finances healthy!";
-    }
-    if (approval === "Borderline") {
-      return "Your loan is borderline. Improve approval chances by reducing expenses or increasing deposit.";
-    }
-    return "Your loan was declined. Consider lowering your expenses, increasing your income, or reducing the loan amount.";
-  };
-
   const handleClear = () => {
-    setLoanType("Personal Loan");
     setAmount("");
     setTerm("");
     setIncome("");
     setExpenses("");
-    setBalloon("");
-    setDeposit("");
     setResult(null);
   };
 
   const handleExport = () => {
-    if (!result) return;
     const doc = new jsPDF();
-    doc.text("Scend Loan Summary", 14, 20);
-    autoTable(doc, {
-      startY: 30,
+    doc.text("Scend Loan Qualification Report", 14, 16);
+    doc.autoTable({
+      startY: 20,
       head: [["Field", "Value"]],
-      body: [
-        ["Loan Type", loanType],
-        ["Loan Amount", `R ${result.loanAmount.toFixed(2)}`],
-        ["Deposit", `R ${result.depositAmount.toFixed(2)}`],
-        ["Balloon Amount", `R ${result.balloonValue.toFixed(2)}`],
-        ["Term", `${result.termMonths} months`],
-        ["Interest Rate", `${result.interestRate.toFixed(2)} %`],
-        ["Monthly Repayment", `R ${result.monthlyRepayment.toFixed(2)}`],
-        ["Loan Cost", `R ${result.loanCost.toFixed(2)}`],
-        ["Total Repayment", `R ${result.totalRepayment.toFixed(2)}`],
-        ["Disposable Income", `R ${result.disposableIncome.toFixed(2)}`],
-        ["DTI", `${result.dti.toFixed(2)}%`],
-        ["DTI Risk", result.dtiRisk],
-        ["Estimated Credit Score", result.estimatedScore],
-        ["Compliant", result.compliant],
-        ["Decision", result.approval],
-        ["Recommendation", result.recommendation],
-      ],
+      body: Object.entries(result || {}).map(([key, value]) => [key, value]),
     });
-    doc.save("scend_loan_summary.pdf");
+    doc.save("loan_report.pdf");
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-white rounded-xl shadow space-y-4">
-      <h1 className="text-2xl font-bold text-pink-600">Scend Loan Tool</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <select value={loanType} onChange={(e) => setLoanType(e.target.value)} className="border p-2 rounded">
-          <option>Personal Loan</option>
-          <option>Home Loan</option>
-          <option>Vehicle Finance</option>
-          <option>Credit Card</option>
-        </select>
-        <input type="number" placeholder="Loan Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="border p-2 rounded" />
-        <input type="number" placeholder="Term (Months)" value={term} onChange={(e) => setTerm(e.target.value)} className="border p-2 rounded" />
-        <input type="number" placeholder="Monthly Income" value={income} onChange={(e) => setIncome(e.target.value)} className="border p-2 rounded" />
-        <input type="number" placeholder="Monthly Expenses" value={expenses} onChange={(e) => setExpenses(e.target.value)} className="border p-2 rounded" />
-        {loanType === "Vehicle Finance" && (
-          <input type="number" placeholder="Balloon (%)" value={balloon} onChange={(e) => setBalloon(e.target.value)} className="border p-2 rounded" />
-        )}
-        {(loanType === "Vehicle Finance" || loanType === "Home Loan") && (
-          <input type="number" placeholder="Deposit Amount" value={deposit} onChange={(e) => setDeposit(e.target.value)} className="border p-2 rounded" />
-        )}
-      </div>
-
-      <div className="flex gap-3 mt-4">
-        <button onClick={handleCalculate} className="bg-pink-600 text-white px-4 py-2 rounded">Calculate</button>
-        <button onClick={handleClear} className="bg-gray-600 text-white px-4 py-2 rounded">Clear</button>
-        <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2 rounded">Export PDF</button>
+    <div className="p-4 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Scend Loan Tool</h1>
+      <select
+        value={loanType}
+        onChange={(e) => setLoanType(e.target.value)}
+        className="border p-2 mb-2"
+      >
+        <option>Personal Loan</option>
+        <option>Vehicle Finance</option>
+        <option>Home Loan</option>
+        <option>Credit Card</option>
+      </select>
+      <input
+        type="number"
+        placeholder="Loan Amount"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        className="border p-2 mb-2 w-full"
+      />
+      <input
+        type="number"
+        placeholder="Term (months)"
+        value={term}
+        onChange={(e) => setTerm(e.target.value)}
+        className="border p-2 mb-2 w-full"
+      />
+      <input
+        type="number"
+        placeholder="Monthly Income"
+        value={income}
+        onChange={(e) => setIncome(e.target.value)}
+        className="border p-2 mb-2 w-full"
+      />
+      <input
+        type="number"
+        placeholder="Monthly Expenses"
+        value={expenses}
+        onChange={(e) => setExpenses(e.target.value)}
+        className="border p-2 mb-2 w-full"
+      />
+      <div className="space-x-2 mb-4">
+        <button onClick={handleCalculate} className="bg-blue-500 text-white px-4 py-2">Calculate</button>
+        <button onClick={handleClear} className="bg-gray-500 text-white px-4 py-2">Clear</button>
+        <button onClick={handleExport} className="bg-green-500 text-white px-4 py-2">Export PDF</button>
       </div>
 
       {result && (
-        <div className="mt-6 space-y-2">
-          <h2 className="text-xl font-semibold text-gray-800">Results</h2>
-          <div>Interest Rate: <strong>{result.interestRate.toFixed(2)}%</strong></div>
-          <div>Monthly Repayment: <strong>R {result.monthlyRepayment.toFixed(2)}</strong></div>
-          <div>Balloon Amount (due at end): <strong>R {result.balloonValue.toFixed(2)}</strong></div>
-          <div>Total Repayment: <strong>R {result.totalRepayment.toFixed(2)}</strong></div>
-          <div>Loan Cost (Interest): <strong>R {result.loanCost.toFixed(2)}</strong></div>
-          <div>Estimated Credit Score: <strong>{result.estimatedScore}</strong></div>
-          <div>DTI: <strong>{result.dti.toFixed(2)}%</strong> — Risk: <strong>{result.dtiRisk}</strong></div>
-          <div>Disposable Income: <strong>R {result.disposableIncome.toFixed(2)}</strong></div>
-          <div>Compliance: <span className={`font-semibold ${result.compliant === "Yes" ? "text-green-600" : "text-red-600"}`}>{result.compliant}</span></div>
-          <div>Decision: <span className={`font-semibold ${result.approval === "Approved" ? "text-green-600" : result.approval === "Borderline" ? "text-yellow-600" : "text-red-600"}`}>{result.approval}</span></div>
-          <div className="mt-2 text-sm text-gray-700 italic">{result.recommendation}</div>
+        <div className="bg-white p-4 rounded shadow">
+          <h2 className="text-xl font-semibold mb-2">Results</h2>
+          <p><strong>Interest Rate:</strong> {result.interestRate}%</p>
+          <p><strong>Monthly Repayment:</strong> R {result.monthlyRepayment}</p>
+          <p><strong>Balloon Amount (due at end):</strong> R {result.balloonAmount}</p>
+          <p><strong>Total Repayment:</strong> R {result.totalRepayment}</p>
+          <p><strong>Loan Cost (Interest):</strong> R {result.loanCost}</p>
+          <p><strong>Estimated Credit Score:</strong> {result.creditScore}</p>
+          <p><strong>DTI:</strong> {result.dti}% — Risk: {result.dtiRisk}</p>
+          <p><strong>Disposable Income:</strong> R {result.disposableIncome}</p>
+          <p><strong>Compliance:</strong> {result.compliant}</p>
+          <p><strong>Decision:</strong> {result.approval}</p>
+          <p><strong>Recommendation:</strong> {result.recommendation}</p>
         </div>
       )}
     </div>
