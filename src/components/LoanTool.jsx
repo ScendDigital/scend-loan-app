@@ -56,6 +56,10 @@ export default function LoanTool() {
 
     const dtiRisk = dti <= 30 ? "Low" : dti <= 45 ? "Moderate" : "High";
 
+    // ✅ Fix applied: Pass "Yes"/"No" to match what generateRecommendation expects
+    const complianceStatus = compliant ? "Yes" : "No";
+    const recommendation = generateRecommendation(approval, dtiRisk, complianceStatus);
+
     setResult({
       loanAmount,
       termMonths,
@@ -70,8 +74,8 @@ export default function LoanTool() {
       dtiRisk,
       estimatedScore,
       approval,
-      compliant: compliant ? "Yes" : "No",
-      recommendation: generateRecommendation(approval, dtiRisk, compliant),
+      compliant: complianceStatus,
+      recommendation,
     });
   };
 
