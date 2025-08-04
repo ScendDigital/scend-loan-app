@@ -14,18 +14,18 @@ export default function Home() {
           priority
         />
       </div>
-      <h1 className="text-4xl font-bold text-gray-800 mb-4">Welcome to Scend</h1>
+      <h1 className="text-4xl font-bold text-scendGrey mb-4">Welcome to Scend</h1>
       <p className="text-lg text-gray-600 mb-6 max-w-xl">
         Your trusted partner in digital services, financial tools, and business solutions.
       </p>
-      <div className="flex gap-4">
+      <div className="flex flex-wrap justify-center gap-4">
         <Link href="/loan">
-          <button className="bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-2xl shadow">
+          <button className="bg-scendPink hover:bg-pink-700 text-white px-6 py-2 rounded-2xl shadow">
             Loan Qualification Tool
           </button>
         </Link>
         <Link href="/tax">
-          <button className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-2 rounded-2xl shadow">
+          <button className="bg-scendGrey hover:bg-gray-800 text-white px-6 py-2 rounded-2xl shadow">
             Tax Calculator
           </button>
         </Link>
