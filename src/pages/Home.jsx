@@ -1,6 +1,6 @@
 // src/pages/Home.jsx
 import React from 'react';
-import logo from '../assets/scend-logo.png';
+<Image src="/scend-logo.png" alt="Scend Logo" width={100} height={100} />
 
 function Home() {
   return (
