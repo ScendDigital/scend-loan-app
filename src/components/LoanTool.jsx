@@ -32,13 +32,12 @@ export default function LoanTool() {
     const termMonths = parseInt(term) || 0;
     const monthlyIncome = parseFloat(income) || 0;
     const monthlyExpenses = parseFloat(expenses) || 0;
-    const depositAmount = parseFloat(deposit) || 0;
-    const residualPercentage = parseFloat(residual) || 0;
+    const depositAmount = loanType === "Home Loan" || loanType === "Vehicle Finance" ? parseFloat(deposit) || 0 : 0;
+    const residualPercentage = loanType === "Vehicle Finance" ? parseFloat(residual) || 0 : 0;
+    const residualAmount = loanAmount * (residualPercentage / 100);
+    const baseLoan = loanAmount - depositAmount - residualAmount;
 
-    const balloonAmount = loanType === "Vehicle Finance" ? (loanAmount * residualPercentage) / 100 : 0;
-    const baseLoan = loanAmount - depositAmount - balloonAmount;
-
-    const interestRate = getInterestRate(600, loanType);
+    const interestRate = getInterestRate(600, loanType); // placeholder score until real is calculated
     const totalRepayment = baseLoan * Math.pow(1 + interestRate / 100 / 12, termMonths);
     const monthlyRepayment = termMonths > 0 ? totalRepayment / termMonths : 0;
 
@@ -46,7 +45,9 @@ export default function LoanTool() {
     const disposableIncome = monthlyIncome - monthlyExpenses;
 
     let dtiRisk = "Low";
-    if (disposableIncome <= 0 || dti > 55) {
+    if (disposableIncome <= 0) {
+      dtiRisk = "Very High";
+    } else if (dti > 55) {
       dtiRisk = "Very High";
     } else if (dti > 45) {
       dtiRisk = "High";
@@ -84,7 +85,7 @@ export default function LoanTool() {
       monthlyRepayment: finalMonthlyRepayment.toFixed(2),
       totalRepayment: totalFinalRepayment.toFixed(2),
       loanCost: loanCost.toFixed(2),
-      balloonAmount: balloonAmount.toFixed(2),
+      balloonAmount: residualAmount.toFixed(2),
       interestRate: finalInterestRate.toFixed(2),
       creditScore,
       dti: dti.toFixed(2),
@@ -123,7 +124,7 @@ export default function LoanTool() {
       <select
         value={loanType}
         onChange={(e) => setLoanType(e.target.value)}
-        className="border p-2 mb-2 w-full"
+        className="border p-2 mb-2"
       >
         <option>Personal Loan</option>
         <option>Vehicle Finance</option>
@@ -158,26 +159,31 @@ export default function LoanTool() {
         onChange={(e) => setExpenses(e.target.value)}
         className="border p-2 mb-2 w-full"
       />
-      <input
-        type="number"
-        placeholder="Deposit Amount (if any)"
-        value={deposit}
-        onChange={(e) => setDeposit(e.target.value)}
-        className="border p-2 mb-2 w-full"
-      />
+
+      {(loanType === "Vehicle Finance" || loanType === "Home Loan") && (
+        <input
+          type="number"
+          placeholder="Deposit Amount"
+          value={deposit}
+          onChange={(e) => setDeposit(e.target.value)}
+          className="border p-2 mb-2 w-full"
+        />
+      )}
+
       {loanType === "Vehicle Finance" && (
         <input
           type="number"
-          placeholder="Residual % (e.g. 30)"
+          placeholder="Balloon % (e.g. 30)"
           value={residual}
           onChange={(e) => setResidual(e.target.value)}
           className="border p-2 mb-2 w-full"
         />
       )}
+
       <div className="space-x-2 mb-4">
         <button onClick={handleCalculate} className="bg-scendPink text-white px-4 py-2">Calculate</button>
-        <button onClick={handleClear} className="bg-scendGrey text-white px-4 py-2">Clear</button>
-        <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2">Export PDF</button>
+        <button onClick={handleClear} className="bg-buttonGrey text-white px-4 py-2">Clear</button>
+        <button onClick={handleExport} className="bg-buttonGreen text-white px-4 py-2">Export PDF</button>
       </div>
 
       {result && (
