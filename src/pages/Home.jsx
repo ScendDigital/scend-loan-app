@@ -1,4 +1,5 @@
 // src/pages/Home.jsx
+import Image from "next/image";
 import React from 'react';
 <Image src="/scend-logo.png" alt="Scend Logo" width={100} height={100} />
 
