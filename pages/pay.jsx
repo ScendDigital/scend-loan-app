@@ -15,15 +15,17 @@ export default function PayPage() {
     form.method = "POST";
     form.action = "https://www.payfast.co.za/eng/process"; // LIVE URL
 
-const fields = {
-  merchant_id: "16535198",         // LIVE ID
-  merchant_key: "xc6fbuaqkyel6",   // LIVE Key
-  amount: "55.00",
-  item_name: `Scend – ${tool === "loan" ? "Loan Tool" : "Tax Tool"} Access`,
-  return_url: `https://www.scend.co.za/${tool}`,
-  cancel_url: `https://www.scend.co.za/select-tool`,
-  notify_url: `https://www.scend.co.za/api/payfast/notify`,
-};
+    const fields = {
+      merchant_id: "16535198",                   // LIVE Merchant ID
+      merchant_key: "xc6fbuaqkyel6",             // LIVE Merchant Key
+      amount: "55.00",
+      item_name: `Scend – ${tool === "loan" ? "Loan Tool" : "Tax Tool"} Access`,
+      return_url: `https://www.scend.co.za/${tool}`,
+      cancel_url: `https://www.scend.co.za/select-tool`,
+      notify_url: `https://www.scend.co.za/api/payfast/notify`,
+      email_address: "motlatsi.lenyatsa@gmail.com",  // Email for Payfast notification
+      charset: "UTF-8",                                // Optional, avoids encoding issues
+    };
 
     for (const key in fields) {
       const input = document.createElement("input");
