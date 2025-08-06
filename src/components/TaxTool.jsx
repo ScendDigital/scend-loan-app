@@ -1,148 +1,134 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import jsPDF from "jspdf";
 
 export default function TaxTool() {
+  const [income, setIncome] = useState(0);
+  const [dependents, setDependents] = useState(0);
   const [idNumber, setIdNumber] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [income, setIncome] = useState("");
-  const [retirement, setRetirement] = useState("");
-  const [medicalDependents, setMedicalDependents] = useState("");
+  const [retirement, setRetirement] = useState(0);
+  const [carAllowance, setCarAllowance] = useState(0);
+  const [taxPaid, setTaxPaid] = useState(0);
   const [result, setResult] = useState(null);
 
-  const calculateAge = (id) => {
-    if (id.length !== 13) return null;
-    const year = parseInt(id.substring(0, 2), 10);
-    const month = parseInt(id.substring(2, 4), 10) - 1;
-    const day = parseInt(id.substring(4, 6), 10);
-    const fullYear = year > 50 ? 1900 + year : 2000 + year;
-    const birthDate = new Date(fullYear, month, day);
-    const today = new Date();
-    const age = today.getFullYear() - birthDate.getFullYear();
-    return today < new Date(today.getFullYear(), month, day) ? age - 1 : age;
-  };
-
   const calculateTax = () => {
-    const gross = parseFloat(income) || 0;
-    const ra = Math.min(gross * 0.275, parseFloat(retirement) || 0);
-    const dependents = parseInt(medicalDependents) || 0;
+    const age = getAgeFromID(idNumber);
+    const isUnder65 = age < 65;
+    const isUnder75 = age < 75;
 
-    const taxableIncome = gross - ra;
+    const primaryRebate = 17235;
+    const secondaryRebate = 9444;
+    const tertiaryRebate = 3145;
 
-    let paye = 0;
-    if (taxableIncome <= 237100) {
-      paye = taxableIncome * 0.18;
-    } else if (taxableIncome <= 370500) {
-      paye = 42678 + (taxableIncome - 237100) * 0.26;
-    } else if (taxableIncome <= 512800) {
-      paye = 77362 + (taxableIncome - 370500) * 0.31;
-    } else if (taxableIncome <= 673000) {
-      paye = 121475 + (taxableIncome - 512800) * 0.36;
-    } else if (taxableIncome <= 857900) {
-      paye = 179147 + (taxableIncome - 673000) * 0.39;
-    } else if (taxableIncome <= 1817000) {
-      paye = 251258 + (taxableIncome - 857900) * 0.41;
-    } else {
-      paye = 644489 + (taxableIncome - 1817000) * 0.45;
-    }
+    let rebate = primaryRebate;
+    if (!isUnder65) rebate += secondaryRebate;
+    if (!isUnder75) rebate += tertiaryRebate;
 
-    const age = calculateAge(idNumber);
-    let rebate = 17235;
-    if (age >= 65) rebate += 9499;
-    if (age >= 75) rebate += 3163;
+    const taxableIncome = income - retirement - (carAllowance * 0.8);
 
-    const medCredit = 364 * 12 + Math.max(0, dependents - 1) * 246 * 12;
+    let tax = 0;
+    if (taxableIncome <= 237100) tax = taxableIncome * 0.18;
+    else if (taxableIncome <= 370500) tax = 42678 + (taxableIncome - 237100) * 0.26;
+    else if (taxableIncome <= 512800) tax = 77362 + (taxableIncome - 370500) * 0.31;
+    else if (taxableIncome <= 673000) tax = 121475 + (taxableIncome - 512800) * 0.36;
+    else if (taxableIncome <= 857900) tax = 179147 + (taxableIncome - 673000) * 0.39;
+    else if (taxableIncome <= 1817000) tax = 251258 + (taxableIncome - 857900) * 0.41;
+    else tax = 644489 + (taxableIncome - 1817000) * 0.45;
 
-    const finalTax = Math.max(0, paye - rebate - medCredit);
+    // Medical tax credit
+    let medCredit = 0;
+    if (dependents >= 1) medCredit += 364;
+    if (dependents >= 2) medCredit += 364;
+    if (dependents >= 3) medCredit += (dependents - 2) * 246;
+    const annualMedCredit = medCredit * 12;
+
+    const finalTax = Math.max(tax - rebate - annualMedCredit, 0);
+    const difference = taxPaid - finalTax;
+
+    const message = difference > 0
+      ? `✅ You have overpaid. SARS owes you R${difference.toFixed(2)}`
+      : difference < 0
+      ? `❌ You owe SARS R${Math.abs(difference).toFixed(2)}`
+      : `✅ Your tax is correctly calculated. No amount due to or from SARS.`;
 
     setResult({
-      fullName,
-      age,
-      taxableIncome: taxableIncome.toFixed(2),
-      paye: paye.toFixed(2),
+      tax: tax.toFixed(2),
       rebate,
-      medCredit,
+      annualMedCredit,
       finalTax: finalTax.toFixed(2),
+      message
     });
   };
 
+  const clearAll = () => {
+    setIncome(0);
+    setDependents(0);
+    setIdNumber("");
+    setRetirement(0);
+    setCarAllowance(0);
+    setTaxPaid(0);
+    setResult(null);
+  };
+
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("SARS Tax Calculation Results", 20, 20);
+    const lines = [
+      `Annual Income: R ${income}`,
+      `Dependents: ${dependents}`,
+      `Retirement Contribution: R ${retirement}`,
+      `Car Allowance: R ${carAllowance}`,
+      `Tax Paid: R ${taxPaid}`,
+      `Tax Before Rebates: R ${result.tax}`,
+      `Primary + Age Rebates: R ${result.rebate}`,
+      `Medical Aid Credit: R ${result.annualMedCredit}`,
+      `Final Tax Due: R ${result.finalTax}`,
+      `Outcome: ${result.message}`
+    ];
+    doc.setFontSize(12);
+    doc.text(lines, 20, 40);
+    doc.save("tax-results.pdf");
+  };
+
+  const getAgeFromID = (id) => {
+    const birthYear = parseInt(id.slice(0, 2), 10);
+    const fullYear = birthYear > 50 ? 1900 + birthYear : 2000 + birthYear;
+    const birthMonth = parseInt(id.slice(2, 4), 10) - 1;
+    const birthDay = parseInt(id.slice(4, 6), 10);
+    const birthDate = new Date(fullYear, birthMonth, birthDay);
+    const ageDifMs = Date.now() - birthDate.getTime();
+    return Math.floor(ageDifMs / (1000 * 60 * 60 * 24 * 365.25));
+  };
+
   return (
-    <div className="max-w-3xl mx-auto p-6 bg-white shadow-md rounded-xl border border-gray-200">
-      <img src="/scend-logo.png" alt="Scend Logo" className="h-12 mb-4" />
+    <div style={{ maxWidth: "700px", margin: "2rem auto", padding: "1rem", border: "2px solid #ec4899", borderRadius: "10px", backgroundColor: "#fdf2f8" }}>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#6b7280", marginBottom: "1rem" }}>Tax Calculator (SARS 2024/2025)</h2>
 
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">SARS Tax Estimator (2024/2025)</h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <input
-          placeholder="Full Name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className="border p-2 rounded"
-        />
-        <input
-          placeholder="South African ID Number"
-          value={idNumber}
-          onChange={(e) => setIdNumber(e.target.value)}
-          className="border p-2 rounded"
-        />
-        <input
-          placeholder="Gross Annual Income"
-          type="number"
-          value={income}
-          onChange={(e) => setIncome(e.target.value)}
-          className="border p-2 rounded"
-        />
-        <input
-          placeholder="Retirement Annuity Contribution"
-          type="number"
-          value={retirement}
-          onChange={(e) => setRetirement(e.target.value)}
-          className="border p-2 rounded"
-        />
-        <input
-          placeholder="Medical Aid Dependents (Excl. You)"
-          type="number"
-          value={medicalDependents}
-          onChange={(e) => setMedicalDependents(e.target.value)}
-          className="border p-2 rounded"
-        />
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <label>Gross Annual Income: <input type="number" value={income} onChange={e => setIncome(parseFloat(e.target.value))} /></label>
+        <label>Medical Aid Dependents: <input type="number" value={dependents} onChange={e => setDependents(parseInt(e.target.value))} /></label>
+        <label>ID Number: <input type="text" value={idNumber} onChange={e => setIdNumber(e.target.value)} /></label>
+        <label>Retirement Contributions: <input type="number" value={retirement} onChange={e => setRetirement(parseFloat(e.target.value))} /></label>
+        <label>Car Allowance: <input type="number" value={carAllowance} onChange={e => setCarAllowance(parseFloat(e.target.value))} /></label>
+        <label>Tax Paid: <input type="number" value={taxPaid} onChange={e => setTaxPaid(parseFloat(e.target.value))} /></label>
       </div>
 
-      <div className="flex gap-4">
-        <button
-          onClick={calculateTax}
-          className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700"
-        >
-          Calculate
-        </button>
-        <button
-          onClick={() => {
-            setIdNumber("");
-            setFullName("");
-            setIncome("");
-            setRetirement("");
-            setMedicalDependents("");
-            setResult(null);
-          }}
-          className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
-        >
-          Clear
-        </button>
+      <div style={{ marginTop: "1rem" }}>
+        <button onClick={calculateTax}>Calculate</button>
+        <button onClick={clearAll} style={{ marginLeft: "1rem" }}>Clear</button>
+        <button onClick={exportPDF} style={{ marginLeft: "1rem" }}>Export PDF</button>
       </div>
 
       {result && (
-        <div className="mt-6 border-t pt-4 text-sm">
-          <h3 className="text-xl font-semibold mb-2">Results</h3>
-          <p><strong>Name:</strong> {result.fullName}</p>
-          <p><strong>Age:</strong> {result.age}</p>
-          <p><strong>Taxable Income:</strong> R {result.taxableIncome}</p>
-          <p><strong>PAYE Before Rebates:</strong> R {result.paye}</p>
-          <p><strong>Age-Based Rebate:</strong> R {result.rebate}</p>
-          <p><strong>Medical Aid Credit:</strong> R {result.medCredit}</p>
-          <p className="text-lg font-bold text-gray-800 mt-2">
-            Total PAYE Due: R {result.finalTax}
-          </p>
+        <div style={{ marginTop: "2rem", backgroundColor: "#fff0f6", padding: "1rem", borderRadius: "8px" }}>
+          <h3 style={{ color: "#6b7280" }}>Results:</h3>
+          <p>Tax Before Rebates: R {result.tax}</p>
+          <p>Rebates: R {result.rebate}</p>
+          <p>Medical Aid Credit: R {result.annualMedCredit}</p>
+          <p><strong>Final Tax Payable: R {result.finalTax}</strong></p>
+          <p>{result.message}</p>
         </div>
       )}
     </div>
   );
 }
- 

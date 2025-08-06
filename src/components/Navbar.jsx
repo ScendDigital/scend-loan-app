@@ -1,31 +1,32 @@
 import Link from "next/link";
-import Image from "next/image";
-import logo from "/public/scend-logo.png"; // Logo must be in public directory
 
 export default function Navbar() {
   return (
-    <nav className="bg-scendGrey text-white shadow-md py-4 px-6 flex justify-between items-center">
-      <div className="flex items-center space-x-3">
-        <Image src={logo} alt="Scend Logo" width={40} height={40} />
-        <h1 className="text-xl font-bold text-scendPink">Scend</h1>
-      </div>
-      <div className="space-x-4 text-lg">
-        <Link href="/">
-          <span className="hover:text-scendPink cursor-pointer">Home</span>
-        </Link>
-        <span className="text-scendPink">|</span>
-        <Link href="/loan">
-          <span className="hover:text-scendPink cursor-pointer">Loan Tool</span>
-        </Link>
-        <span className="text-scendPink">|</span>
-        <Link href="/AboutUs">
-          <span className="hover:text-scendPink cursor-pointer">About Us</span>
-        </Link>
-        <span className="text-scendPink">|</span>
-        <Link href="/Contact">
-          <span className="hover:text-scendPink cursor-pointer">Contact</span>
-        </Link>
-      </div>
+    <nav
+      style={{
+        display: "flex",
+        gap: "20px",
+        padding: "1rem",
+        backgroundColor: "#fdf2f8",
+        borderBottom: "2px solid #ec4899",
+        justifyContent: "center"
+      }}
+    >
+      <Link href="/" passHref legacyBehavior>
+        <a style={{ color: "#ec4899", textDecoration: "none", fontWeight: "bold" }}>Home</a>
+      </Link>
+      <Link href="/about" passHref legacyBehavior>
+        <a style={{ color: "#6b7280", textDecoration: "none" }}>About Us</a>
+      </Link>
+      <Link href="/contact" passHref legacyBehavior>
+        <a style={{ color: "#ec4899", textDecoration: "none" }}>Contact Us</a>
+      </Link>
+      <Link href="/loan" passHref legacyBehavior>
+        <a style={{ color: "#6b7280", textDecoration: "none" }}>LoanTool</a>
+      </Link>
+      <Link href="/tax" passHref legacyBehavior>
+        <a style={{ color: "#ec4899", textDecoration: "none" }}>TaxTool</a>
+      </Link>
     </nav>
   );
 }

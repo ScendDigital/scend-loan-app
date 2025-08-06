@@ -1,35 +1,22 @@
-import React from "react";
+import Navbar from "@/components/Navbar";
 import Image from "next/image";
-import Link from "next/link";
+import logo from "@/public/scend-logo.png";
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-white px-4 text-center">
-      <div className="mb-6">
-        <Image
-          src="/scend-logo.png"
-          alt="Scend Logo"
-          width={120}
-          height={120}
-          priority
-        />
+    <>
+      <Navbar />
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "1rem" }}>
+          <Image src={logo} alt="Scend Logo" width={50} height={50} />
+          <h1 style={{ color: "#ec4899", fontSize: "2rem", fontWeight: "bold" }}>Welcome to Scend</h1>
+        </div>
+        <p style={{ marginTop: "1rem" }}>
+          Scend is a multi-service company offering expert solutions across finance, digital, plumbing, maintenance, and more.
+          Whether you need a loan qualification tool or trusted hands for your next project — we’re here for you.
+        </p>
+        <p><em>We take care of it, so you don’t have to.</em></p>
       </div>
-      <h1 className="text-4xl font-bold text-scendGrey mb-4">Welcome to Scend</h1>
-      <p className="text-lg text-gray-600 mb-6 max-w-xl">
-        Your trusted partner in digital services, financial tools, and business solutions.
-      </p>
-      <div className="flex flex-wrap justify-center gap-4">
-        <Link href="/loan">
-          <button className="bg-scendPink hover:bg-pink-700 text-white px-6 py-2 rounded-2xl shadow">
-            Loan Qualification Tool
-          </button>
-        </Link>
-        <Link href="/tax">
-          <button className="bg-scendGrey hover:bg-gray-800 text-white px-6 py-2 rounded-2xl shadow">
-            Tax Calculator
-          </button>
-        </Link>
-      </div>
-    </main>
+    </>
   );
 }
