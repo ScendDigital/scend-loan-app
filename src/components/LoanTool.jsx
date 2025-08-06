@@ -1,7 +1,54 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
 import jsPDF from "jspdf";
 
 export default function LoanTool() {
+  const router = useRouter();
+  const [timeLeft, setTimeLeft] = useState(null);
+
+  useEffect(() => {
+    const paid = sessionStorage.getItem("paid_loan");
+    const paidTime = sessionStorage.getItem("paid_loan_time");
+
+    if (!paid || !paidTime) {
+      router.push("/pay?tool=loan");
+      return;
+    }
+
+    const now = new Date().getTime();
+    const elapsed = now - parseInt(paidTime);
+    const maxSession = 2 * 60 * 60 * 1000; // 2 hours
+
+    if (elapsed > maxSession) {
+      sessionStorage.removeItem("paid_loan");
+      sessionStorage.removeItem("paid_loan_time");
+      router.push("/pay?tool=loan");
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const elapsed = now - parseInt(paidTime);
+      const remaining = maxSession - elapsed;
+
+      if (remaining <= 0) {
+        sessionStorage.removeItem("paid_loan");
+        sessionStorage.removeItem("paid_loan_time");
+        router.push("/pay?tool=loan");
+        return;
+      }
+
+      const hours = Math.floor(remaining / 1000 / 60 / 60);
+      const minutes = Math.floor((remaining / 1000 / 60) % 60);
+      setTimeLeft(`${hours}h ${minutes}m left`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [loanType, setLoanType] = useState("Vehicle Finance");
   const [loanAmount, setLoanAmount] = useState(75000);
   const [term, setTerm] = useState(24);
@@ -100,6 +147,20 @@ export default function LoanTool() {
 
   return (
     <div style={{ maxWidth: "600px", margin: "2rem auto", padding: "1rem", border: "2px solid #ec4899", borderRadius: "10px", backgroundColor: "#fdf2f8" }}>
+      {timeLeft && (
+        <div style={{
+          padding: "10px",
+          marginBottom: "1rem",
+          backgroundColor: "#fff0f5",
+          border: "1px solid #ec4899",
+          borderRadius: "8px",
+          textAlign: "center",
+          fontWeight: "bold",
+        }}>
+          ⏳ Access expires in: {timeLeft}
+        </div>
+      )}
+
       <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#ec4899", marginBottom: "1rem" }}>Loan Qualification Tool</h2>
 
       <div style={{ marginBottom: "1rem" }}>

@@ -1,7 +1,53 @@
-import { useState } from "react";
 import jsPDF from "jspdf";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
 
 export default function TaxTool() {
+  const router = useRouter();
+  const [timeLeft, setTimeLeft] = useState(null);
+
+  useEffect(() => {
+    const paid = sessionStorage.getItem("paid_tax");
+    const paidTime = sessionStorage.getItem("paid_tax_time");
+
+    if (!paid || !paidTime) {
+      router.push("/pay?tool=tax");
+      return;
+    }
+
+    const now = new Date().getTime();
+    const elapsed = now - parseInt(paidTime);
+    const maxSession = 2 * 60 * 60 * 1000;
+
+    if (elapsed > maxSession) {
+      sessionStorage.removeItem("paid_tax");
+      sessionStorage.removeItem("paid_tax_time");
+      router.push("/pay?tool=tax");
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const elapsed = now - parseInt(paidTime);
+      const remaining = maxSession - elapsed;
+
+      if (remaining <= 0) {
+        sessionStorage.removeItem("paid_tax");
+        sessionStorage.removeItem("paid_tax_time");
+        router.push("/pay?tool=tax");
+        return;
+      }
+
+      const hours = Math.floor(remaining / 1000 / 60 / 60);
+      const minutes = Math.floor((remaining / 1000 / 60) % 60);
+      setTimeLeft(`${hours}h ${minutes}m left`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [income, setIncome] = useState(0);
   const [dependents, setDependents] = useState(0);
   const [idNumber, setIdNumber] = useState("");
@@ -102,7 +148,22 @@ export default function TaxTool() {
 
   return (
     <div style={{ maxWidth: "700px", margin: "2rem auto", padding: "1rem", border: "2px solid #ec4899", borderRadius: "10px", backgroundColor: "#fdf2f8" }}>
-      <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#6b7280", marginBottom: "1rem" }}>Tax Calculator (SARS 2024/2025)</h2>
+      
+      {timeLeft && (
+        <div style={{
+          padding: "10px",
+          marginBottom: "1rem",
+          backgroundColor: "#fff0f5",
+          border: "1px solid #ec4899",
+          borderRadius: "8px",
+          textAlign: "center",
+          fontWeight: "bold",
+        }}>
+          ⏳ Access expires in: {timeLeft}
+        </div>
+      )}
+
+<h2 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#6b7280", marginBottom: "1rem" }}>Tax Calculator (SARS 2024/2025)</h2>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <label>Gross Annual Income: <input type="number" value={income} onChange={e => setIncome(parseFloat(e.target.value))} /></label>
