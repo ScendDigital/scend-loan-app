@@ -20,15 +20,15 @@ globalThis.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/loan": [
+    "/pay": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/loan.js"
+      "static/chunks/pages/pay.js"
     ],
-    "/tax": [
+    "/select-tool": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/tax.js"
+      "static/chunks/pages/select-tool.js"
     ]
   },
   "ampFirstPages": []
