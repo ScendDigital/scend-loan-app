@@ -10,7 +10,6 @@ export default function Success() {
     const toolParam = url.searchParams.get("custom_str1") || "LoanTool";
     setTool(toolParam);
 
-    // Call session create API to set the 2-hour cookie
     fetch(`/api/session/create?tool=${encodeURIComponent(toolParam)}`, {
       method: "POST",
     })
@@ -18,7 +17,7 @@ export default function Success() {
         if (!res.ok) throw new Error("Failed to start session");
         return res.json();
       })
-      .then((data) => {
+      .then(() => {
         setStatus("✅ Access granted for 2 hours!");
       })
       .catch((err) => {
