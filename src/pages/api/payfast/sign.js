@@ -1,44 +1,43 @@
+// src/pages/api/payfast/sign.js
 import crypto from "crypto";
 
 export default function handler(req, res) {
+  // If it's a GET request, just confirm the endpoint is live
+  if (req.method === "GET") {
+    return res.status(200).json({
+      status: "ok",
+      message: "PayFast sign.js API is live 🚀",
+    });
+  }
+
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method Not Allowed" });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const data = req.body || {};
-
-    // Retrieve your PayFast passphrase from environment variables
     const passphrase = process.env.PAYFAST_PASSPHRASE;
     if (!passphrase) {
-      console.error("❌ Missing PAYFAST_PASSPHRASE in environment variables");
-      return res.status(500).json({ error: "Server missing passphrase" });
+      return res.status(500).json({ error: "Passphrase not set on server" });
     }
 
-    // Sort fields alphabetically as required by PayFast
-    const sortedKeys = Object.keys(data).sort();
-    const queryString = sortedKeys
-      .map((key) => `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")}`)
+    const fields = req.body || {};
+    console.log("Incoming PayFast fields:", fields);
+
+    // Build the string for signing
+    const pfString = Object.entries(fields)
+      .map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%20/g, "+")}`)
       .join("&");
 
-    // Append passphrase
-    const stringToSign = `${queryString}&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, "+")}`;
+    const signature = crypto
+      .createHash("md5")
+      .update(`${pfString}&passphrase=${encodeURIComponent(passphrase)}`)
+      .digest("hex");
 
-    // Debug log: what we are signing
-    console.log("🔍 PayFast Signing Debug");
-    console.log("Fields Received:", data);
-    console.log("Sorted Keys:", sortedKeys);
-    console.log("Query String (before signing):", queryString);
-    console.log("String To Sign (with passphrase):", stringToSign);
+    console.log("Generated signature:", signature);
 
-    // Create MD5 signature
-    const signature = crypto.createHash("md5").update(stringToSign).digest("hex");
-
-    console.log("✅ Generated Signature:", signature);
-
-    return res.status(200).json({ signature });
-  } catch (err) {
-    console.error("💥 Error in PayFast signing API:", err);
-    return res.status(500).json({ error: "Internal Server Error" });
+    res.status(200).json({ signature });
+  } catch (error) {
+    console.error("Error in sign.js:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 }
