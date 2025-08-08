@@ -1,5 +1,4 @@
-// pages/_app.jsx
-import Navbar from "@/components/Navbar"; // Adjust path if needed
+import Navbar from "@/components/Navbar";
 import "@/styles/globals.css";
 
 export default function App({ Component, pageProps }) {
