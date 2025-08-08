@@ -1,105 +1,204 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
+// pages/pay.jsx
+import { useState } from "react";
+
+const PF_ENDPOINTS = {
+  sandbox: "https://sandbox.payfast.co.za/eng/process",
+  live: "https://www.payfast.co.za/eng/process",
+};
 
 export default function PayPage() {
-  const router = useRouter();
-  const { tool } = router.query;
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState(process.env.NEXT_PUBLIC_PAYFAST_MODE || "sandbox");
 
-  useEffect(() => {
-    if (!router.isReady) return; // wait for query params
-    console.log("[/pay] router.isReady:", router.isReady, "tool:", tool);
+  // Form state
+  const [form, setForm] = useState({
+    name_first: "",
+    name_last: "",
+    email_address: "",
+    amount: "",
+    item_name: "Scend Tool Access (2 hours)",
+    custom_str1: "LoanTool", // e.g. LoanTool or TaxTool
+  });
 
-    if (!tool || (tool !== "loan" && tool !== "tax")) {
-      console.warn("[/pay] invalid or missing tool -> redirecting to /select-tool");
-      router.push("/select-tool");
-      return;
-    }
+  const onChange = (e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  };
 
-    const run = async () => {
-      try {
-        // 1) Build fields
-        const fields = {
-          merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-          merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-          amount: "55.00",
-          item_name: `Scend - ${tool === "loan" ? "Loan Tool" : "Tax Tool"} Access`,
-          email_address: "motlatsi.lenyatsa@gmail.com",
-          name_first: "Motlatsi",
-          name_last: "Lenyatsa",
-          return_url: `https://www.scend.co.za/${tool}`,
-          cancel_url: `https://www.scend.co.za/select-tool`,
-          notify_url: `https://www.scend.co.za/api/payfast/notify`,
-        };
-        console.log("[/pay] Prepared fields:", fields);
+  // Minimal m_payment_id generator (unique per request)
+  const makePaymentId = () =>
+    `SCEND-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-        // Sanity check: make sure public env vars exist
-        if (!fields.merchant_id || !fields.merchant_key) {
-          setError("Missing merchant credentials. Check Vercel env vars.");
-          console.error("[/pay] Missing env vars:", {
-            merchant_id: fields.merchant_id,
-            merchant_key: fields.merchant_key,
-          });
-          return;
-        }
+  const handlePay = async (e) => {
+    e.preventDefault();
+    if (loading) return;
 
-        // 2) Ask server to sign
-        const resp = await fetch("/api/payfast/sign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(fields),
-        });
+    try {
+      setLoading(true);
 
-        if (!resp.ok) {
-          const text = await resp.text();
-          console.error("[/pay] Signature request failed:", text);
-          setError("Payment initialisation failed. Please try again.");
-          return;
-        }
+      // Build Payfast base fields
+      const m_payment_id = makePaymentId();
 
-        const { signature } = await resp.json();
-        console.log("[/pay] Signature from API:", signature);
-        if (!signature) {
-          setError("No signature returned from server.");
-          return;
-        }
+      // Ensure 2-decimal amount as string
+      const cleanAmount = (Number(form.amount) || 0).toFixed(2);
 
-        // 3) Build form + submit to PayFast LIVE
-        const payload = { ...fields, signature };
-        console.log("[/pay] PayFast payload to submit:", payload);
+      const pfFields = {
+        // Required merchant fields
+        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || "16535198",
+        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || "xc6fbuaqkyel6",
 
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = "https://www.payfast.co.za/eng/process"; // LIVE gateway
+        // Your transaction fields
+        return_url: process.env.NEXT_PUBLIC_PAYFAST_RETURN_URL || "https://www.scend.co.za/success",
+        cancel_url: process.env.NEXT_PUBLIC_PAYFAST_CANCEL_URL || "https://www.scend.co.za/cancel",
+        notify_url: process.env.NEXT_PUBLIC_PAYFAST_NOTIFY_URL || "https://www.scend.co.za/api/payfast/ipn",
 
-        Object.entries(payload).forEach(([name, value]) => {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = name;
-          input.value = String(value);
-          form.appendChild(input);
-        });
+        amount: cleanAmount,
+        item_name: form.item_name,
+        m_payment_id,
 
-        document.body.appendChild(form);
-        form.submit();
-      } catch (e) {
-        console.error("[/pay] Unexpected error:", e);
-        setError("Unexpected error while starting payment.");
+        // Buyer details (this is what you asked for)
+        name_first: form.name_first,
+        name_last: form.name_last,
+        email_address: form.email_address,
+
+        // Optional custom tracking
+        custom_str1: form.custom_str1, // which tool
+      };
+
+      // Ask your API to sign (must mirror the exact fields you intend to post)
+      const res = await fetch("/api/payfast/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pfFields),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Signature API failed: ${res.status} ${text}`);
       }
-    };
 
-    run();
-  }, [router.isReady, tool]); // re-run once query is ready
+      const { signature } = await res.json();
+      if (!signature) throw new Error("No signature returned from /api/payfast/sign");
 
-  if (error) {
-    return (
-      <div style={{ padding: "1.5rem" }}>
-        <h2>⚠ Payment Error</h2>
-        <p>{error}</p>
-        <p>Please try again or contact support.</p>
+      // Submit to Payfast using a form (redirect)
+      const formEl = document.createElement("form");
+      formEl.method = "POST";
+      formEl.action = PF_ENDPOINTS[mode] || PF_ENDPOINTS.sandbox;
+
+      const appendField = (k, v) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = k;
+        input.value = v;
+        formEl.appendChild(input);
+      };
+
+      Object.entries(pfFields).forEach(([k, v]) => appendField(k, v));
+      appendField("signature", signature);
+
+      document.body.appendChild(formEl);
+      formEl.submit();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Payment init failed. Check console for details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main style={{ maxWidth: 560, margin: "40px auto", padding: 16 }}>
+      <h1>Pay for Access</h1>
+      <p>Payfast Standard Redirect (Option A)</p>
+
+      <div style={{ margin: "12px 0" }}>
+        <label>
+          Mode:&nbsp;
+          <select value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option value="sandbox">Sandbox</option>
+            <option value="live">Live</option>
+          </select>
+        </label>
       </div>
-    );
-  }
 
-  return <p>Redirecting to PayFast for secure R55.00 payment…</p>;
+      <form onSubmit={handlePay}>
+        <div style={{ display: "grid", gap: 12 }}>
+          <label>
+            First name
+            <input
+              name="name_first"
+              value={form.name_first}
+              onChange={onChange}
+              required
+              placeholder="John"
+            />
+          </label>
+
+          <label>
+            Last name
+            <input
+              name="name_last"
+              value={form.name_last}
+              onChange={onChange}
+              required
+              placeholder="Doe"
+            />
+          </label>
+
+          <label>
+            Email
+            <input
+              type="email"
+              name="email_address"
+              value={form.email_address}
+              onChange={onChange}
+              required
+              placeholder="john@example.com"
+            />
+          </label>
+
+          <label>
+            Amount (ZAR)
+            <input
+              type="number"
+              step="0.01"
+              min="1"
+              name="amount"
+              value={form.amount}
+              onChange={onChange}
+              required
+              placeholder="99.00"
+            />
+          </label>
+
+          <label>
+            Item name
+            <input
+              name="item_name"
+              value={form.item_name}
+              onChange={onChange}
+              required
+            />
+          </label>
+
+          <label>
+            Tool (custom_str1)
+            <select name="custom_str1" value={form.custom_str1} onChange={onChange}>
+              <option>LoanTool</option>
+              <option>TaxTool</option>
+            </select>
+          </label>
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Redirecting…" : "Pay with Payfast"}
+          </button>
+        </div>
+      </form>
+
+      <p style={{ marginTop: 16, fontSize: 12, opacity: 0.8 }}>
+        Tip: if you get a signature or 500 error, open DevTools → Network and check the
+        <code>/api/payfast/sign</code> request body vs the Payfast post body. They must match exactly.
+      </p>
+    </main>
+  );
 }

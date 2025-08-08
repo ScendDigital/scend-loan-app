@@ -1,54 +1,52 @@
 // pages/api/payfast/sign.js
 import crypto from "crypto";
 
-export default function handler(req, res) {
-  // Debug GET so we can hit it in browser
-  if (req.method === "GET") {
-    return res.status(200).json({
-      status: "ok",
-      message: "PayFast sign.js API is live 🚀",
-    });
-  }
+function buildSignatureString(fields, passphrase) {
+  // 1) sort keys alphabetically
+  const ordered = Object.keys(fields)
+    .sort()
+    .reduce((acc, k) => {
+      const v = fields[k];
+      // Payfast: exclude empty/null/undefined
+      if (v !== null && v !== undefined && String(v).length > 0) {
+        acc[k] = String(v);
+      }
+      return acc;
+    }, {});
 
+  // 2) stringify as key=value&key2=value2...
+  const pairs = Object.entries(ordered).map(
+    ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v).replace(/%20/g, "+")}`
+  );
+  if (passphrase) {
+    pairs.push(`passphrase=${encodeURIComponent(passphrase).replace(/%20/g, "+")}`);
+  }
+  return pairs.join("&");
+}
+
+export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const passphrase = process.env.PAYFAST_PASSPHRASE;
-    if (!passphrase) {
-      console.error("❌ Missing PAYFAST_PASSPHRASE");
-      return res.status(500).json({ error: "Server missing passphrase" });
+    const fields = req.body || {};
+    // Optional: sanity checks
+    const required = ["merchant_id", "merchant_key", "amount", "item_name", "m_payment_id"];
+    const missing = required.filter((k) => !fields[k]);
+    if (missing.length) {
+      return res.status(400).json({ error: `Missing fields: ${missing.join(", ")}` });
     }
 
-    const fields = req.body || {};
+    const passphrase = process.env.PAYFAST_PASSPHRASE || ""; // leave blank if not set in dashboard
+    const signatureString = buildSignatureString(fields, passphrase);
+    const signature = crypto.createHash("md5").update(signatureString).digest("hex");
 
-    // 🔑 SORT KEYS ALPHABETICALLY (required by PayFast)
-    const sortedKeys = Object.keys(fields).sort();
-
-    // Build key=value&key=value with URL-encoding and spaces as '+'
-    const queryString = sortedKeys
-      .map((key) => `${key}=${encodeURIComponent(String(fields[key])).replace(/%20/g, "+")}`)
-      .join("&");
-
-    // Append passphrase (also URL-encode; spaces as '+')
-    const stringToSign =
-      queryString + `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, "+")}`;
-
-    // MD5 hash per PayFast docs
-    const signature = crypto.createHash("md5").update(stringToSign).digest("hex");
-
-    // Debug logs
-    console.log("🔍 PayFast Signing Debug");
-    console.log("Fields Received:", fields);
-    console.log("Sorted Keys:", sortedKeys);
-    console.log("Query String:", queryString);
-    console.log("String To Sign:", stringToSign);
+    // Helpful debug (shows in Vercel logs, redact email)
     console.log("✅ Generated Signature:", signature);
-
     return res.status(200).json({ signature });
   } catch (err) {
-    console.error("💥 Error in sign.js:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("Signature error:", err);
+    return res.status(500).json({ error: "Signature generation failed" });
   }
 }
