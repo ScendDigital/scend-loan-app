@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 export default function Success() {
   const [tool, setTool] = useState(null);
-  const [status, setStatus] = useState("Setting up your access…");
+  const [status, setStatus] = useState("Setting up your access...");
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -18,11 +18,11 @@ export default function Success() {
         return res.json();
       })
       .then(() => {
-        setStatus("✅ Access granted for 2 hours!");
+        setStatus("Access granted for 2 hours!");
       })
       .catch((err) => {
         console.error(err);
-        setStatus(⚠️ Could not start your session. Please contact support.");
+        setStatus("Could not start your session. Please contact support.");
       });
   }, []);
 
@@ -31,7 +31,7 @@ export default function Success() {
       <h1>Payment Successful</h1>
       <p>{status}</p>
 
-      {tool && status.startsWith("✅") && (
+      {tool && status.startsWith("Access granted") && (
         <p style={{ marginTop: "1rem" }}>
           {tool === "LoanTool" && (
             <a href="/loan" style={{ color: "#d63384", fontWeight: "bold" }}>
@@ -47,8 +47,7 @@ export default function Success() {
       )}
 
       <p style={{ marginTop: "2rem", fontSize: "0.9rem", opacity: 0.8 }}>
-        Your session will expire automatically after 2 hours. You can always
-        return to the payment page to purchase more time.
+        Your session will expire automatically after 2 hours. You can return to the payment page to purchase more time.
       </p>
     </main>
   );
