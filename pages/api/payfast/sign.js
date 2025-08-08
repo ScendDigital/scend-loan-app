@@ -1,8 +1,8 @@
-// src/pages/api/payfast/sign.js
+// pages/api/payfast/sign.js
 import crypto from "crypto";
 
 export default function handler(req, res) {
-  // If it's a GET request, just confirm the endpoint is live
+  // Debug GET so we can hit it in browser
   if (req.method === "GET") {
     return res.status(200).json({
       status: "ok",
@@ -17,27 +17,38 @@ export default function handler(req, res) {
   try {
     const passphrase = process.env.PAYFAST_PASSPHRASE;
     if (!passphrase) {
-      return res.status(500).json({ error: "Passphrase not set on server" });
+      console.error("❌ Missing PAYFAST_PASSPHRASE");
+      return res.status(500).json({ error: "Server missing passphrase" });
     }
 
     const fields = req.body || {};
-    console.log("Incoming PayFast fields:", fields);
 
-    // Build the string for signing
-    const pfString = Object.entries(fields)
-      .map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%20/g, "+")}`)
+    // 🔑 SORT KEYS ALPHABETICALLY (required by PayFast)
+    const sortedKeys = Object.keys(fields).sort();
+
+    // Build key=value&key=value with URL-encoding and spaces as '+'
+    const queryString = sortedKeys
+      .map((key) => `${key}=${encodeURIComponent(String(fields[key])).replace(/%20/g, "+")}`)
       .join("&");
 
-    const signature = crypto
-      .createHash("md5")
-      .update(`${pfString}&passphrase=${encodeURIComponent(passphrase)}`)
-      .digest("hex");
+    // Append passphrase (also URL-encode; spaces as '+')
+    const stringToSign =
+      queryString + `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, "+")}`;
 
-    console.log("Generated signature:", signature);
+    // MD5 hash per PayFast docs
+    const signature = crypto.createHash("md5").update(stringToSign).digest("hex");
 
-    res.status(200).json({ signature });
-  } catch (error) {
-    console.error("Error in sign.js:", error);
-    res.status(500).json({ error: "Internal server error" });
+    // Debug logs
+    console.log("🔍 PayFast Signing Debug");
+    console.log("Fields Received:", fields);
+    console.log("Sorted Keys:", sortedKeys);
+    console.log("Query String:", queryString);
+    console.log("String To Sign:", stringToSign);
+    console.log("✅ Generated Signature:", signature);
+
+    return res.status(200).json({ signature });
+  } catch (err) {
+    console.error("💥 Error in sign.js:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
