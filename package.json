@@ -7,6 +7,8 @@
     "start": "next start"
   },
   "dependencies": {
+    "cookie": "^1.0.2",
+    "jsonwebtoken": "^9.0.2",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.5.23",
     "next": "latest",
