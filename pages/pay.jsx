@@ -27,8 +27,7 @@ export default function PayPage() {
   const makePaymentId = () =>
     `SCEND-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-  const handlePay = async (e) => {
-    e.preventDefault();
+  const handlePay = async () => {
     if (loading) return;
 
     try {
@@ -38,7 +37,7 @@ export default function PayPage() {
       const m_payment_id = makePaymentId();
       const cleanAmount = (Number(form.amount) || 0).toFixed(2);
 
-      // 1) Build EXACT fields we will sign and later post to Payfast
+      // 1) Build EXACT fields we’ll sign and later post to Payfast
       const pfFields = {
         // merchant
         merchant_id: isSandbox
@@ -93,12 +92,12 @@ export default function PayPage() {
         return; // prevent posting without signature
       }
 
-      // 3) Build the real form POST to Payfast (fields + signature)
+      // 3) Build form POST to Payfast (fields + signature)
       const formEl = document.createElement("form");
       formEl.method = "POST";
       formEl.action = PF_ENDPOINTS[isSandbox ? "sandbox" : "live"];
 
-      const appendField = (k, v) => {
+      const add = (k, v) => {
         const input = document.createElement("input");
         input.type = "hidden";
         input.name = k;
@@ -106,8 +105,8 @@ export default function PayPage() {
         formEl.appendChild(input);
       };
 
-      Object.entries(pfFields).forEach(([k, v]) => appendField(k, v));
-      appendField("signature", signature); // <-- REQUIRED
+      Object.entries(pfFields).forEach(([k, v]) => add(k, v));
+      add("signature", signature); // REQUIRED
 
       document.body.appendChild(formEl);
       formEl.submit();
@@ -134,7 +133,8 @@ export default function PayPage() {
         </label>
       </div>
 
-      <form onSubmit={handlePay}>
+      {/* We keep a <form> for layout/validation, but the button is type="button" so only handlePay runs */}
+      <form onSubmit={(e) => e.preventDefault()}>
         <div style={{ display: "grid", gap: 12 }}>
           <label>
             First name
@@ -206,7 +206,8 @@ export default function PayPage() {
             </select>
           </label>
 
-          <button type="submit" disabled={loading}>
+          {/* IMPORTANT: type="button" so native submit can't bypass our signature step */}
+          <button type="button" onClick={handlePay} disabled={loading}>
             {loading ? "Redirecting..." : "Pay with Payfast"}
           </button>
         </div>
@@ -214,7 +215,7 @@ export default function PayPage() {
 
       <p style={{ marginTop: 16, fontSize: 12, opacity: 0.8 }}>
         Tip: In DevTools → Network, the <code>process</code> request’s Form Data must include
-        a <code>signature</code> field. If it’s missing, this page won’t submit.
+        a <code>signature</code> field. If it’s missing, this page will not submit.
       </p>
     </main>
   );
