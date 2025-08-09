@@ -1,23 +1,20 @@
 // pages/api/payfast/sign.js
-// Builds a Payfast POST payload + signature using PHP-style urlencode.
-// Includes merchant_key in the signature (except the 'signature' field itself).
+// Builds the Payfast POST + signature and logs the exact sigString we hash.
 
 import crypto from "crypto";
 
 function phpUrlEncode(val) {
   return encodeURIComponent(String(val))
-    .replace(/%20/g, "+")     // space -> +
-    .replace(/~/g, "%7E")     // ~ -> %7E (matches PHP urlencode)
+    .replace(/%20/g, "+")
+    .replace(/~/g, "%7E")
     .replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
 function buildSigString(fields, passphrase = "") {
-  // Sign ALL posted fields EXCEPT 'signature' itself.
   const pairs = Object.keys(fields)
     .filter(k => k !== "signature" && fields[k] !== undefined && fields[k] !== null && fields[k] !== "")
     .sort()
     .map(k => `${k}=${phpUrlEncode(fields[k])}`);
-
   if (passphrase) pairs.push(`passphrase=${phpUrlEncode(passphrase)}`);
   return pairs.join("&");
 }
@@ -34,38 +31,22 @@ export default async function handler(req, res) {
 
   try {
     const {
-      amount,
-      item_name,
-      item_description,
-      custom_str1,       // e.g., "LoanTool" | "TaxTool"
-      mode,              // optional: 'sandbox' | 'live'
-      return_url,
-      cancel_url,
-      notify_url,
-      name_first,
-      name_last,
-      email_address,
-      m_payment_id,      // optional; we generate if missing
+      amount, item_name, item_description, custom_str1, mode,
+      return_url, cancel_url, notify_url, name_first, name_last, email_address, m_payment_id
     } = req.body || {};
 
-    if (!amount || !item_name) {
-      return res.status(400).json({ error: "amount and item_name are required" });
-    }
+    if (!amount || !item_name) return res.status(400).json({ error: "amount and item_name are required" });
 
-    // Pick environment
-    const SANDBOX = (process.env.PAYFAST_SANDBOX === "true") || mode === "sandbox";
-    const merchant_id  = SANDBOX ? "10000100" : process.env.PAYFAST_MERCHANT_ID_LIVE;
-    const merchant_key = SANDBOX ? "46f0cd694581a" : process.env.PAYFAST_MERCHANT_KEY_LIVE;
+    const SANDBOX     = (process.env.PAYFAST_SANDBOX === "true") || mode === "sandbox";
+    const merchant_id = SANDBOX ? "10000100" : process.env.PAYFAST_MERCHANT_ID_LIVE;
+    const merchant_key= SANDBOX ? "46f0cd694581a" : process.env.PAYFAST_MERCHANT_KEY_LIVE;
+    if (!merchant_id || !merchant_key) return res.status(500).json({ error: "Merchant credentials are missing on server" });
 
-    if (!merchant_id || !merchant_key) {
-      return res.status(500).json({ error: "Merchant credentials are missing on server" });
-    }
-
-    // URLs
     const base = process.env.PUBLIC_BASE_URL || "https://www.scend.co.za";
+
     const postFields = {
       merchant_id,
-      merchant_key, // Include in POST and in signature
+      merchant_key, // included and signed
       return_url: return_url || `${base}/success`,
       cancel_url:  cancel_url  || `${base}/cancel`,
       notify_url:  notify_url  || `${base}/api/payfast/itn`,
@@ -82,6 +63,13 @@ export default async function handler(req, res) {
     const passphrase = process.env.PAYFAST_PASSPHRASE || "";
     const sigString  = buildSigString(postFields, passphrase);
     const signature  = md5(sigString);
+
+    // helpful log for cross-checking with ITN
+    console.log("=== Payfast SIGN Debug ===");
+    console.log("m_payment_id:", postFields.m_payment_id);
+    console.log("sigString:", sigString);
+    console.log("signature:", signature);
+    console.log("=========================");
 
     const endpoint = SANDBOX
       ? "https://sandbox.payfast.co.za/eng/process"
