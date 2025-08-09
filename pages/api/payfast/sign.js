@@ -1,30 +1,23 @@
-// pages/api/payfast/sign.js
-// Build Payfast POST + signature (PHP-style urlencode).
-// IMPORTANT: Exclude merchant_key and signature from the string you hash.
+// Builds Payfast POST + signature (PHP-style urlencode).
+// Sandbox: no passphrase. Live: append passphrase if set.
+// Signature = MD5 of ALL posted fields except 'signature' (merchant_key IS included).
 
 import crypto from "crypto";
 
-function phpUrlEncode(val) {
-  return encodeURIComponent(String(val))
-    .replace(/%20/g, "+")     // space -> +
-    .replace(/~/g, "%7E")     // ~ -> %7E (PHP urlencode)
+function phpUrlEncode(v) {
+  return encodeURIComponent(String(v))
+    .replace(/%20/g, "+")
+    .replace(/~/g, "%7E")
     .replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
-
 function buildSigString(fields, passphrase = "") {
   const pairs = Object.keys(fields)
-    .filter(k =>
-      k !== "signature" &&        // never include 'signature'
-      k !== "merchant_key" &&     // EXCLUDE merchant_key from signature
-      fields[k] !== undefined && fields[k] !== null && fields[k] !== ""
-    )
+    .filter(k => k !== "signature" && fields[k] !== undefined && fields[k] !== null && fields[k] !== "")
     .sort()
     .map(k => `${k}=${phpUrlEncode(fields[k])}`);
-
   if (passphrase) pairs.push(`passphrase=${phpUrlEncode(passphrase)}`);
   return pairs.join("&");
 }
-
 const md5 = s => crypto.createHash("md5").update(s).digest("hex");
 
 function makePaymentId(prefix = "SCEND") {
@@ -41,22 +34,17 @@ export default async function handler(req, res) {
       return_url, cancel_url, notify_url, name_first, name_last, email_address, m_payment_id
     } = req.body || {};
 
-    if (!amount || !item_name) {
-      return res.status(400).json({ error: "amount and item_name are required" });
-    }
+    if (!amount || !item_name) return res.status(400).json({ error: "amount and item_name are required" });
 
     const SANDBOX = (process.env.PAYFAST_SANDBOX === "true") || mode === "sandbox";
     const merchant_id  = SANDBOX ? "10000100" : process.env.PAYFAST_MERCHANT_ID_LIVE;
     const merchant_key = SANDBOX ? "46f0cd694581a" : process.env.PAYFAST_MERCHANT_KEY_LIVE;
-
-    if (!merchant_id || !merchant_key) {
-      return res.status(500).json({ error: "Merchant credentials are missing on server" });
-    }
+    if (!merchant_id || !merchant_key) return res.status(500).json({ error: "Merchant credentials are missing on server" });
 
     const base = process.env.PUBLIC_BASE_URL || "https://www.scend.co.za";
     const postFields = {
       merchant_id,
-      merchant_key, // POST it, but DON'T sign it
+      merchant_key, // included & signed
       return_url: return_url || `${base}/success`,
       cancel_url:  cancel_url  || `${base}/cancel`,
       notify_url:  notify_url  || `${base}/api/payfast/itn`,
@@ -70,20 +58,14 @@ export default async function handler(req, res) {
       ...(email_address ? { email_address } : {}),
     };
 
-    const passphrase = process.env.PAYFAST_PASSPHRASE || "";
+    // Only append passphrase in LIVE (sandbox has none)
+    const passphrase = (!SANDBOX && process.env.PAYFAST_PASSPHRASE) ? process.env.PAYFAST_PASSPHRASE : "";
     const sigString  = buildSigString(postFields, passphrase);
     const signature  = md5(sigString);
 
     const endpoint = SANDBOX
       ? "https://sandbox.payfast.co.za/eng/process"
       : "https://www.payfast.co.za/eng/process";
-
-    // Optional helpful logs
-    console.log("=== Payfast SIGN Debug ===");
-    console.log("m_payment_id:", postFields.m_payment_id);
-    console.log("sigString:", sigString);
-    console.log("signature:", signature);
-    console.log("=========================");
 
     return res.status(200).json({
       endpoint,
