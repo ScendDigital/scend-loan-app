@@ -7,16 +7,17 @@ const PF_ENDPOINTS = {
 };
 
 export default function PayPage() {
-  const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState(process.env.NEXT_PUBLIC_PAYFAST_MODE || "live");
-
+  const [loading, setLoading] = useState(false);
+  const [signature, setSignature] = useState("");
+  const [pfFields, setPfFields] = useState(null);
   const [form, setForm] = useState({
     name_first: "",
     name_last: "",
     email_address: "",
     amount: "",
     item_name: "Scend Tool Access (2 hours)",
-    custom_str1: "LoanTool", // or "TaxTool"
+    custom_str1: "LoanTool",
   });
 
   const onChange = (e) => {
@@ -27,27 +28,20 @@ export default function PayPage() {
   const makePaymentId = () =>
     `SCEND-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-  const handlePay = async () => {
-    if (loading) return;
-
+  async function getSignature() {
+    setSignature("");
+    setPfFields(null);
+    setLoading(true);
     try {
-      setLoading(true);
-
       const isSandbox = mode === "sandbox";
-      const m_payment_id = makePaymentId();
       const cleanAmount = (Number(form.amount) || 0).toFixed(2);
-
-      // 1) Build EXACT fields we’ll sign and later post to Payfast
-      const pfFields = {
-        // merchant
+      const fields = {
         merchant_id: isSandbox
           ? "10000100"
           : process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || "16535198",
         merchant_key: isSandbox
           ? "46f0cd694581a"
           : process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || "xc6fbuaqkyel6",
-
-        // urls
         return_url:
           process.env.NEXT_PUBLIC_PAYFAST_RETURN_URL ||
           "https://www.scend.co.za/success",
@@ -57,71 +51,67 @@ export default function PayPage() {
         notify_url:
           process.env.NEXT_PUBLIC_PAYFAST_NOTIFY_URL ||
           "https://www.scend.co.za/api/payfast/ipn",
-
-        // txn
         amount: cleanAmount,
         item_name: form.item_name,
-        m_payment_id,
-
-        // buyer
+        m_payment_id: makePaymentId(),
         name_first: form.name_first,
         name_last: form.name_last,
         email_address: form.email_address,
-
-        // custom
         custom_str1: form.custom_str1,
       };
 
-      // 2) Ask your API to generate the signature for THESE EXACT FIELDS
       const res = await fetch("/api/payfast/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pfFields),
+        body: JSON.stringify(fields),
       });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Signature API failed: ${res.status} ${text}`);
-      }
-
       const data = await res.json();
-      const signature = data?.signature;
-      if (!signature) {
-        console.error("No signature returned:", data);
-        alert("Could not generate signature. Please try again.");
-        return; // prevent posting without signature
+      if (!res.ok || !data.signature) {
+        console.error("Sign failed:", data);
+        alert("Signature API failed. Check console.");
+        return;
       }
-
-      // 3) Build form POST to Payfast (fields + signature)
-      const formEl = document.createElement("form");
-      formEl.method = "POST";
-      formEl.action = PF_ENDPOINTS[isSandbox ? "sandbox" : "live"];
-
-      const add = (k, v) => {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = k;
-        input.value = v;
-        formEl.appendChild(input);
-      };
-
-      Object.entries(pfFields).forEach(([k, v]) => add(k, v));
-      add("signature", signature); // REQUIRED
-
-      document.body.appendChild(formEl);
-      formEl.submit();
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Payment init failed. Check console for details.");
+      setSignature(data.signature);
+      setPfFields(fields);
+      console.log("PF SIGNATURE:", data.signature);
+      console.log("PF FIELDS:", fields);
+    } catch (e) {
+      console.error(e);
+      alert("Could not generate signature.");
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  function continueToPayfast() {
+    if (!pfFields || !signature) {
+      alert("No signature yet.");
+      return;
+    }
+    const isSandbox = mode === "sandbox";
+    const formEl = document.createElement("form");
+    formEl.method = "POST";
+    formEl.action = PF_ENDPOINTS[isSandbox ? "sandbox" : "live"];
+
+    const add = (k, v) => {
+      const i = document.createElement("input");
+      i.type = "hidden";
+      i.name = k;
+      i.value = v;
+      formEl.appendChild(i);
+    };
+
+    Object.entries(pfFields).forEach(([k, v]) => add(k, v));
+    add("signature", signature); // ← you will now SEE this appear in Network → process → Form Data
+
+    document.body.appendChild(formEl);
+    formEl.submit();
+  }
 
   return (
-    <main style={{ maxWidth: 560, margin: "40px auto", padding: 16 }}>
-      <h1>Pay for Access</h1>
-      <p>Payfast Standard Redirect</p>
+    <main style={{ maxWidth: 640, margin: "40px auto", padding: 16 }}>
+      <h1>Pay for Access (Diagnostic)</h1>
+      <p>This page will fetch a signature first, show it, then enable the Payfast submit.</p>
 
       <div style={{ margin: "12px 0" }}>
         <label>
@@ -133,90 +123,64 @@ export default function PayPage() {
         </label>
       </div>
 
-      {/* We keep a <form> for layout/validation, but the button is type="button" so only handlePay runs */}
-      <form onSubmit={(e) => e.preventDefault()}>
-        <div style={{ display: "grid", gap: 12 }}>
-          <label>
-            First name
-            <input
-              name="name_first"
-              value={form.name_first}
-              onChange={onChange}
-              required
-              placeholder="John"
-            />
-          </label>
+      <div style={{ display: "grid", gap: 12 }}>
+        <label>
+          First name
+          <input name="name_first" value={form.name_first} onChange={onChange} required />
+        </label>
+        <label>
+          Last name
+          <input name="name_last" value={form.name_last} onChange={onChange} required />
+        </label>
+        <label>
+          Email
+          <input type="email" name="email_address" value={form.email_address} onChange={onChange} required />
+        </label>
+        <label>
+          Amount (ZAR)
+          <input type="number" step="0.01" min="1" name="amount" value={form.amount} onChange={onChange} required />
+        </label>
+        <label>
+          Item name
+          <input name="item_name" value={form.item_name} onChange={onChange} required />
+        </label>
+        <label>
+          Tool (custom_str1)
+          <select name="custom_str1" value={form.custom_str1} onChange={onChange}>
+            <option>LoanTool</option>
+            <option>TaxTool</option>
+          </select>
+        </label>
 
-          <label>
-            Last name
-            <input
-              name="name_last"
-              value={form.name_last}
-              onChange={onChange}
-              required
-              placeholder="Doe"
-            />
-          </label>
-
-          <label>
-            Email
-            <input
-              type="email"
-              name="email_address"
-              value={form.email_address}
-              onChange={onChange}
-              required
-              placeholder="john@example.com"
-            />
-          </label>
-
-          <label>
-            Amount (ZAR)
-            <input
-              type="number"
-              step="0.01"
-              min="1"
-              name="amount"
-              value={form.amount}
-              onChange={onChange}
-              required
-              placeholder="99.00"
-            />
-          </label>
-
-          <label>
-            Item name
-            <input
-              name="item_name"
-              value={form.item_name}
-              onChange={onChange}
-              required
-            />
-          </label>
-
-          <label>
-            Tool (custom_str1)
-            <select
-              name="custom_str1"
-              value={form.custom_str1}
-              onChange={onChange}
-            >
-              <option>LoanTool</option>
-              <option>TaxTool</option>
-            </select>
-          </label>
-
-          {/* IMPORTANT: type="button" so native submit can't bypass our signature step */}
-          <button type="button" onClick={handlePay} disabled={loading}>
-            {loading ? "Redirecting..." : "Pay with Payfast"}
+        <div style={{ display: "flex", gap: 12 }}>
+          <button type="button" onClick={getSignature} disabled={loading}>
+            {loading ? "Generating signature..." : "1) Generate signature"}
+          </button>
+          <button
+            type="button"
+            onClick={continueToPayfast}
+            disabled={!signature || !pfFields}
+            title={!signature ? "Generate signature first" : "Continue"}
+          >
+            2) Continue to Payfast
           </button>
         </div>
-      </form>
 
-      <p style={{ marginTop: 16, fontSize: 12, opacity: 0.8 }}>
-        Tip: In DevTools → Network, the <code>process</code> request’s Form Data must include
-        a <code>signature</code> field. If it’s missing, this page will not submit.
-      </p>
+        <div style={{ marginTop: 12, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+          <div><strong>Signature:</strong> <code>{signature || "(none yet)"}</code></div>
+          <div style={{ marginTop: 8 }}>
+            <strong>Fields being posted:</strong>
+            <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+{JSON.stringify(pfFields, null, 2)}
+            </pre>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 12, opacity: 0.8 }}>
+          In DevTools → Network: after step (2), open the <code>process</code> request → Form Data. You
+          should see a <code>signature</code> field. If Payfast still errors, copy that signature here.
+        </p>
+      </div>
     </main>
   );
 }
