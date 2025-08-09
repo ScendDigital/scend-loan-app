@@ -8,7 +8,7 @@ const PF_ENDPOINTS = {
 
 export default function PayPage() {
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState(process.env.NEXT_PUBLIC_PAYFAST_MODE || "sandbox");
+  const [mode, setMode] = useState(process.env.NEXT_PUBLIC_PAYFAST_MODE || "live");
 
   // Form state
   const [form, setForm] = useState({
@@ -17,7 +17,7 @@ export default function PayPage() {
     email_address: "",
     amount: "",
     item_name: "Scend Tool Access (2 hours)",
-    custom_str1: "LoanTool", // e.g. LoanTool or TaxTool
+    custom_str1: "LoanTool", // or TaxTool
   });
 
   const onChange = (e) => {
@@ -25,7 +25,7 @@ export default function PayPage() {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
-  // Minimal m_payment_id generator (unique per request)
+  // Unique-ish id
   const makePaymentId = () =>
     `SCEND-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -36,36 +36,48 @@ export default function PayPage() {
     try {
       setLoading(true);
 
-      // Build Payfast base fields
+      const isSandbox = mode === "sandbox";
       const m_payment_id = makePaymentId();
 
-      // Ensure 2-decimal amount as string
+      // Ensure amount is two decimals
       const cleanAmount = (Number(form.amount) || 0).toFixed(2);
 
+      // Build the exact fields to be signed and posted
       const pfFields = {
-        // Required merchant fields
-        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || "16535198",
-        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || "xc6fbuaqkyel6",
+        // Merchant creds
+        merchant_id: isSandbox
+          ? "10000100"
+          : process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || "16535198",
+        merchant_key: isSandbox
+          ? "46f0cd694581a"
+          : process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || "xc6fbuaqkyel6",
 
-        // Your transaction fields
-        return_url: process.env.NEXT_PUBLIC_PAYFAST_RETURN_URL || "https://www.scend.co.za/success",
-        cancel_url: process.env.NEXT_PUBLIC_PAYFAST_CANCEL_URL || "https://www.scend.co.za/cancel",
-        notify_url: process.env.NEXT_PUBLIC_PAYFAST_NOTIFY_URL || "https://www.scend.co.za/api/payfast/ipn",
+        // URLs
+        return_url:
+          process.env.NEXT_PUBLIC_PAYFAST_RETURN_URL ||
+          "https://www.scend.co.za/success",
+        cancel_url:
+          process.env.NEXT_PUBLIC_PAYFAST_CANCEL_URL ||
+          "https://www.scend.co.za/cancel",
+        notify_url:
+          process.env.NEXT_PUBLIC_PAYFAST_NOTIFY_URL ||
+          "https://www.scend.co.za/api/payfast/ipn",
 
+        // Transaction
         amount: cleanAmount,
         item_name: form.item_name,
         m_payment_id,
 
-        // Buyer details (this is what you asked for)
+        // Buyer details
         name_first: form.name_first,
         name_last: form.name_last,
         email_address: form.email_address,
 
-        // Optional custom tracking
-        custom_str1: form.custom_str1, // which tool
+        // Custom tracking (which tool to unlock)
+        custom_str1: form.custom_str1,
       };
 
-      // Ask your API to sign (must mirror the exact fields you intend to post)
+      // 1) Ask server to generate the signature for THESE EXACT FIELDS
       const res = await fetch("/api/payfast/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,17 +85,18 @@ export default function PayPage() {
       });
 
       if (!res.ok) {
-        const text = await res.text();
+        const text = await res.text().catch(() => "");
         throw new Error(`Signature API failed: ${res.status} ${text}`);
       }
 
-      const { signature } = await res.json();
-      if (!signature) throw new Error("No signature returned from /api/payfast/sign");
+      const data = await res.json();
+      const signature = data?.signature;
+      if (!signature) throw new Error("Signature missing from /api/payfast/sign response");
 
-      // Submit to Payfast using a form (redirect)
+      // 2) Post fields + signature to Payfast
       const formEl = document.createElement("form");
       formEl.method = "POST";
-      formEl.action = PF_ENDPOINTS[mode] || PF_ENDPOINTS.sandbox;
+      formEl.action = PF_ENDPOINTS[isSandbox ? "sandbox" : "live"];
 
       const appendField = (k, v) => {
         const input = document.createElement("input");
@@ -94,7 +107,7 @@ export default function PayPage() {
       };
 
       Object.entries(pfFields).forEach(([k, v]) => appendField(k, v));
-      appendField("signature", signature);
+      appendField("signature", signature); // <- REQUIRED
 
       document.body.appendChild(formEl);
       formEl.submit();
@@ -109,7 +122,7 @@ export default function PayPage() {
   return (
     <main style={{ maxWidth: 560, margin: "40px auto", padding: 16 }}>
       <h1>Pay for Access</h1>
-      <p>Payfast Standard Redirect (Option A)</p>
+      <p>Payfast Standard Redirect</p>
 
       <div style={{ margin: "12px 0" }}>
         <label>
@@ -183,7 +196,11 @@ export default function PayPage() {
 
           <label>
             Tool (custom_str1)
-            <select name="custom_str1" value={form.custom_str1} onChange={onChange}>
+            <select
+              name="custom_str1"
+              value={form.custom_str1}
+              onChange={onChange}
+            >
               <option>LoanTool</option>
               <option>TaxTool</option>
             </select>
@@ -196,8 +213,8 @@ export default function PayPage() {
       </form>
 
       <p style={{ marginTop: 16, fontSize: 12, opacity: 0.8 }}>
-        Tip: if you get a signature or 500 error, open DevTools → Network and check the
-        <code>/api/payfast/sign</code> request body vs the Payfast post body. They must match exactly.
+        Tip: If Payfast errors, open DevTools → Network. The <code>/api/payfast/sign</code> request
+        body and the Payfast <code>process</code> form data must match exactly (plus the signature).
       </p>
     </main>
   );
