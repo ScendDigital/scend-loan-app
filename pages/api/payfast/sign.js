@@ -1,23 +1,29 @@
 // pages/api/payfast/sign.js
+// Generates a Payfast-ready POST payload + signature.
+// Uses PHP-style urlencode for signature (spaces -> "+", "~" -> "%7E").
+
 import crypto from "crypto";
 
-function rawurlencode(val) {
-  return encodeURIComponent(String(val)).replace(
-    /[!'()*]/g,
-    (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase()
-  );
+function phpUrlEncode(val) {
+  return encodeURIComponent(String(val))
+    .replace(/%20/g, "+")       // space -> +
+    .replace(/~/g, "%7E")       // ~ -> %7E (PHP urlencode)
+    .replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
+
 function buildSigString(fields, passphrase = "") {
   const pairs = Object.keys(fields)
-    .filter((k) => fields[k] !== undefined && fields[k] !== null && fields[k] !== "")
+    .filter(k => fields[k] !== undefined && fields[k] !== null && fields[k] !== "")
     .sort()
-    .map((k) => `${k}=${rawurlencode(fields[k])}`);
-  if (passphrase) pairs.push(`passphrase=${rawurlencode(passphrase)}`);
+    .map(k => `${k}=${phpUrlEncode(fields[k])}`);
+  if (passphrase) pairs.push(`passphrase=${phpUrlEncode(passphrase)}`);
   return pairs.join("&");
 }
+
 function md5Lower(str) {
   return crypto.createHash("md5").update(str).digest("hex");
 }
+
 function makePaymentId(prefix = "SCEND") {
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
   const ts = Date.now();
@@ -32,15 +38,15 @@ export default async function handler(req, res) {
       amount,
       item_name,
       item_description,
-      custom_str1,     // e.g. LoanTool | TaxTool
-      mode,            // 'sandbox' | 'live' (from client)
+      custom_str1,     // e.g., "LoanTool" | "TaxTool"
+      mode,            // optional: 'sandbox' | 'live' (client hint)
       return_url,
       cancel_url,
       notify_url,
       name_first,
       name_last,
       email_address,
-      m_payment_id,    // optional from client; we’ll generate if missing
+      m_payment_id,    // optional (we generate if missing)
     } = req.body || {};
 
     if (!amount || !item_name) {
@@ -93,7 +99,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       endpoint,
       post: { ...postFields, signature },
-      debug: { SANDBOX }
+      debug: { SANDBOX },
     });
   } catch (err) {
     return res.status(500).json({ error: err?.message || "Server error" });
