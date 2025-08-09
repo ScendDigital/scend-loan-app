@@ -31,11 +31,14 @@ export default function PayPage() {
       const isSandbox = mode === "sandbox";
       const cleanAmount = (Number(form.amount) || 0).toFixed(2);
 
-      // EXACT fields Payfast accepts (NO merchant_key, NO signature yet)
+      // Fields Payfast expects (INCLUDING merchant_key; EXCLUDING signature for now)
       const fields = {
         merchant_id: isSandbox
           ? "10000100"
           : process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || "16535198",
+        merchant_key: isSandbox
+          ? "46f0cd694581a"
+          : process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || "xc6fbuaqkyel6",
 
         return_url:
           process.env.NEXT_PUBLIC_PAYFAST_RETURN_URL ||
@@ -58,7 +61,7 @@ export default function PayPage() {
         custom_str1: form.custom_str1,
       };
 
-      // Ask our API to sign THESE EXACT FIELDS
+      // Ask API to sign THESE EXACT fields
       const r = await fetch("/api/payfast/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -71,7 +74,7 @@ export default function PayPage() {
         return;
       }
 
-      // Build Payfast form: fields + signature
+      // Build POST to Payfast with fields + signature
       const formEl = document.createElement("form");
       formEl.method = "POST";
       formEl.action = PF_ENDPOINTS[isSandbox ? "sandbox" : "live"];
@@ -114,44 +117,34 @@ export default function PayPage() {
 
       <form onSubmit={(e) => e.preventDefault()}>
         <div style={{ display: "grid", gap: 12 }}>
-          <label>
-            First name
+          <label>First name
             <input name="name_first" value={form.name_first} onChange={onChange} required />
           </label>
-          <label>
-            Last name
+          <label>Last name
             <input name="name_last" value={form.name_last} onChange={onChange} required />
           </label>
-          <label>
-            Email
+          <label>Email
             <input type="email" name="email_address" value={form.email_address} onChange={onChange} required />
           </label>
-          <label>
-            Amount (ZAR)
+          <label>Amount (ZAR)
             <input type="number" step="0.01" min="1" name="amount" value={form.amount} onChange={onChange} required />
           </label>
-          <label>
-            Item name
+          <label>Item name
             <input name="item_name" value={form.item_name} onChange={onChange} required />
           </label>
-          <label>
-            Tool (custom_str1)
+          <label>Tool (custom_str1)
             <select name="custom_str1" value={form.custom_str1} onChange={onChange}>
               <option>LoanTool</option>
               <option>TaxTool</option>
             </select>
           </label>
 
-          {/* Use type="button" so native submit can’t bypass our JS */}
+          {/* type="button" so native submit can't bypass our JS */}
           <button type="button" onClick={handlePay} disabled={loading}>
             {loading ? "Redirecting..." : "Pay with Payfast"}
           </button>
         </div>
       </form>
-
-      <p style={{ marginTop: 16, fontSize: 12, opacity: 0.8 }}>
-        After clicking Pay, DevTools → Network → <code>process</code> should show a <code>signature</code> field.
-      </p>
     </main>
   );
 }
