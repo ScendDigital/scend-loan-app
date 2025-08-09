@@ -10,14 +10,13 @@ export default function PayPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState(process.env.NEXT_PUBLIC_PAYFAST_MODE || "live");
 
-  // Form state
   const [form, setForm] = useState({
     name_first: "",
     name_last: "",
     email_address: "",
     amount: "",
     item_name: "Scend Tool Access (2 hours)",
-    custom_str1: "LoanTool", // or TaxTool
+    custom_str1: "LoanTool", // or "TaxTool"
   });
 
   const onChange = (e) => {
@@ -25,7 +24,6 @@ export default function PayPage() {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
-  // Unique-ish id
   const makePaymentId = () =>
     `SCEND-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -38,13 +36,11 @@ export default function PayPage() {
 
       const isSandbox = mode === "sandbox";
       const m_payment_id = makePaymentId();
-
-      // Ensure amount is two decimals
       const cleanAmount = (Number(form.amount) || 0).toFixed(2);
 
-      // Build the exact fields to be signed and posted
+      // 1) Build EXACT fields we will sign and later post to Payfast
       const pfFields = {
-        // Merchant creds
+        // merchant
         merchant_id: isSandbox
           ? "10000100"
           : process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || "16535198",
@@ -52,7 +48,7 @@ export default function PayPage() {
           ? "46f0cd694581a"
           : process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || "xc6fbuaqkyel6",
 
-        // URLs
+        // urls
         return_url:
           process.env.NEXT_PUBLIC_PAYFAST_RETURN_URL ||
           "https://www.scend.co.za/success",
@@ -63,21 +59,21 @@ export default function PayPage() {
           process.env.NEXT_PUBLIC_PAYFAST_NOTIFY_URL ||
           "https://www.scend.co.za/api/payfast/ipn",
 
-        // Transaction
+        // txn
         amount: cleanAmount,
         item_name: form.item_name,
         m_payment_id,
 
-        // Buyer details
+        // buyer
         name_first: form.name_first,
         name_last: form.name_last,
         email_address: form.email_address,
 
-        // Custom tracking (which tool to unlock)
+        // custom
         custom_str1: form.custom_str1,
       };
 
-      // 1) Ask server to generate the signature for THESE EXACT FIELDS
+      // 2) Ask your API to generate the signature for THESE EXACT FIELDS
       const res = await fetch("/api/payfast/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,9 +87,13 @@ export default function PayPage() {
 
       const data = await res.json();
       const signature = data?.signature;
-      if (!signature) throw new Error("Signature missing from /api/payfast/sign response");
+      if (!signature) {
+        console.error("No signature returned:", data);
+        alert("Could not generate signature. Please try again.");
+        return; // prevent posting without signature
+      }
 
-      // 2) Post fields + signature to Payfast
+      // 3) Build the real form POST to Payfast (fields + signature)
       const formEl = document.createElement("form");
       formEl.method = "POST";
       formEl.action = PF_ENDPOINTS[isSandbox ? "sandbox" : "live"];
@@ -107,7 +107,7 @@ export default function PayPage() {
       };
 
       Object.entries(pfFields).forEach(([k, v]) => appendField(k, v));
-      appendField("signature", signature); // <- REQUIRED
+      appendField("signature", signature); // <-- REQUIRED
 
       document.body.appendChild(formEl);
       formEl.submit();
@@ -207,14 +207,14 @@ export default function PayPage() {
           </label>
 
           <button type="submit" disabled={loading}>
-            {loading ? "Redirecting…" : "Pay with Payfast"}
+            {loading ? "Redirecting..." : "Pay with Payfast"}
           </button>
         </div>
       </form>
 
       <p style={{ marginTop: 16, fontSize: 12, opacity: 0.8 }}>
-        Tip: If Payfast errors, open DevTools → Network. The <code>/api/payfast/sign</code> request
-        body and the Payfast <code>process</code> form data must match exactly (plus the signature).
+        Tip: In DevTools → Network, the <code>process</code> request’s Form Data must include
+        a <code>signature</code> field. If it’s missing, this page won’t submit.
       </p>
     </main>
   );
