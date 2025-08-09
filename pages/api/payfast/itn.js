@@ -1,11 +1,10 @@
 // pages/api/payfast/itn.js
-// Logs both the incoming Payfast signature and our rebuilt one for 1:1 comparison.
+// Verify Payfast ITN using PHP-style urlencode and the same rules:
+// Exclude 'signature' and 'merchant_key' from the sig string. Always 200 OK.
 
 import crypto from "crypto";
 
-export const config = {
-  api: { bodyParser: false }, // we need the raw form body
-};
+export const config = { api: { bodyParser: false } };
 
 function phpUrlEncode(val) {
   return encodeURIComponent(String(val))
@@ -16,10 +15,13 @@ function phpUrlEncode(val) {
 
 function buildSigStringItn(fields, passphrase = "") {
   const data = { ...fields };
-  delete data.signature; // NEVER sign signature itself
+  delete data.signature; // never sign signature
 
   const pairs = Object.keys(data)
-    .filter(k => data[k] !== undefined && data[k] !== null && data[k] !== "")
+    .filter(k =>
+      k !== "merchant_key" && // EXCLUDE merchant_key here too
+      data[k] !== undefined && data[k] !== null && data[k] !== ""
+    )
     .sort()
     .map(k => `${k}=${phpUrlEncode(data[k])}`);
 
@@ -49,48 +51,34 @@ export default async function itnHandler(req, res) {
     const raw  = await readRawBody(req);
     const data = parseForm(raw);
 
-    // ——— Build our signature exactly how Payfast should ———
     const passphrase = process.env.PAYFAST_PASSPHRASE || "";
     const sigString  = buildSigStringItn(data, passphrase);
     const rebuiltSig = md5(sigString);
     const incoming   = data.signature || "";
 
-    // Optional merchant check
-    const SANDBOX   = process.env.PAYFAST_SANDBOX === "true";
-    const expected  = SANDBOX ? "10000100" : process.env.PAYFAST_MERCHANT_ID_LIVE;
-
-    // Lightly mask some fields for logs
-    const masked = { ...data };
-    if (masked.email_address) {
-      const [u, d] = masked.email_address.split("@");
-      masked.email_address = (u ? u[0] : "") + "***@" + (d || "");
-    }
-
-    // ——— CRITICAL LOG BLOCK ———
+    // Debug block: side-by-side comparison
     console.log("=== Payfast ITN Debug ===");
     console.log("m_payment_id:", data.m_payment_id);
     console.log("payment_status:", data.payment_status);
-    console.log("merchant_id (incoming):", data.merchant_id, "| expected:", expected);
     console.log("incoming signature:", incoming);
     console.log("rebuilt sigString:", sigString);
     console.log("rebuilt signature:", rebuiltSig);
-    console.log("fields (masked):", masked);
     console.log("=========================");
 
-    // Signature verify (still acknowledge 200 either way)
     if (!incoming || incoming !== rebuiltSig) {
       console.warn("Payfast ITN: signature mismatch");
       return res.status(200).send("Invalid signature");
     }
 
+    // Optional merchant check
+    const SANDBOX = process.env.PAYFAST_SANDBOX === "true";
+    const expected = SANDBOX ? "10000100" : process.env.PAYFAST_MERCHANT_ID_LIVE;
     if (!expected || data.merchant_id !== expected) {
-      console.warn("Payfast ITN: unexpected merchant_id");
+      console.warn("Payfast ITN: unexpected merchant_id", { got: data.merchant_id, expected });
       return res.status(200).send("Merchant mismatch");
     }
 
-    // Handle statuses if you want to unlock access:
-    // const status = (data.payment_status || "").toUpperCase(); // COMPLETE | PENDING | FAILED
-    // if (status === "COMPLETE") { /* grant access */ }
+    // TODO: handle COMPLETE | PENDING | FAILED if you want to unlock access here
 
     return res.status(200).send("ITN received");
   } catch (e) {
