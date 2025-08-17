@@ -14,6 +14,7 @@ export default function TaxTool() {
 
   // Income & travel
   const [baseAnnualIncome, setBaseAnnualIncome] = useState("");
+  the
   const [travelAllowance, setTravelAllowance] = useState("");
   const [deem80, setDeem80] = useState(false);
 
@@ -31,9 +32,13 @@ export default function TaxTool() {
   const [idNum, setIdNum] = useState("");
   const [disabled, setDisabled] = useState(false);
 
-  // Pro-rata flags/inputs
-  const [partialYear, setPartialYear] = useState(false);        // Annual pro-rata (months/12)
-  const [monthProrataPct, setMonthProrataPct] = useState("100"); // Monthly pro-rata %
+  // Day-based pro-rata
+  const [partialYearByDays, setPartialYearByDays] = useState(false);
+  const [yearDaysWorked, setYearDaysWorked] = useState("");     // e.g. 243
+
+  const [prorataMonthByDays, setProrataMonthByDays] = useState(false);
+  const [monthWorkedDays, setMonthWorkedDays] = useState("");   // e.g. 10
+  const [monthDaysInPeriod, setMonthDaysInPeriod] = useState(""); // e.g. 22 (working) or 30/31 (calendar)
 
   const [result, setResult] = useState(null);
 
@@ -51,9 +56,12 @@ export default function TaxTool() {
       idNumber: idNum,
       disabled,
 
-      // pro-rata options
-      partialYear,
-      monthProrataPct: num(monthProrataPct),
+      // day-based pro-rata
+      partialYearByDays,
+      yearDaysWorked: num(yearDaysWorked) || 0,
+      prorataMonthByDays,
+      monthWorkedDays: num(monthWorkedDays) || 0,
+      monthDaysInPeriod: num(monthDaysInPeriod) || 0,
     });
     const balance = res.taxAfterCredits - num(payePaid);
     setResult({ ...res, balance });
@@ -73,8 +81,11 @@ export default function TaxTool() {
     setMedOOP("");
     setIdNum("");
     setDisabled(false);
-    setPartialYear(false);
-    setMonthProrataPct("100");
+    setPartialYearByDays(false);
+    setYearDaysWorked("");
+    setProrataMonthByDays(false);
+    setMonthWorkedDays("");
+    setMonthDaysInPeriod("");
     setResult(null);
   };
 
@@ -170,17 +181,37 @@ export default function TaxTool() {
         </label>
       </div>
 
-      {/* Pro-rata options */}
+      {/* Day-based pro-rata */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <label className="inline-flex items-center gap-2">
-          <input type="checkbox" checked={partialYear} onChange={(e) => setPartialYear(e.target.checked)} />
-          <span>Partial tax year (Annual pro-rata by months/12)</span>
+          <input type="checkbox" checked={partialYearByDays} onChange={(e) => setPartialYearByDays(e.target.checked)} />
+          <span>Partial tax year (pro-rata by <strong>days</strong>)</span>
         </label>
 
-        <label className="block">
-          <div className="text-sm font-medium mb-1">Pro-rata this month (PAYE) %</div>
-          <input className="border rounded p-2 w-full" placeholder="100" value={monthProrataPct} onChange={(e) => setMonthProrataPct(e.target.value)} />
+        {partialYearByDays && (
+          <label className="block">
+            <div className="text-sm font-medium mb-1">Days employed in this tax year</div>
+            <input className="border rounded p-2 w-full" placeholder="e.g. 243" value={yearDaysWorked} onChange={(e) => setYearDaysWorked(e.target.value)} />
+          </label>
+        )}
+
+        <label className="inline-flex items-center gap-2">
+          <input type="checkbox" checked={prorataMonthByDays} onChange={(e) => setProrataMonthByDays(e.target.checked)} />
+          <span>Pro-rata this month (by <strong>days</strong>)</span>
         </label>
+
+        {prorataMonthByDays && (
+          <>
+            <label className="block">
+              <div className="text-sm font-medium mb-1">Days worked this month</div>
+              <input className="border rounded p-2 w-full" placeholder="e.g. 10" value={monthWorkedDays} onChange={(e) => setMonthWorkedDays(e.target.value)} />
+            </label>
+            <label className="block">
+              <div className="text-sm font-medium mb-1">Days in month/period</div>
+              <input className="border rounded p-2 w-full" placeholder="e.g. 22 or 30" value={monthDaysInPeriod} onChange={(e) => setMonthDaysInPeriod(e.target.value)} />
+            </label>
+          </>
+        )}
       </div>
 
       {/* Actions */}
@@ -197,34 +228,48 @@ export default function TaxTool() {
             Breakdown ({result.taxYear}) • {mode}
           </div>
 
+          {/* ID/Rebate note */}
+          {!result.idProvided && result.rebateNote && (
+            <div className="mb-3 p-2 rounded bg-yellow-50 text-yellow-900 text-sm">
+              {result.rebateNote}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
-            <div>Age (from ID): <strong>{result.age}</strong></div>
+            <div>Age (from ID): <strong>{result.idProvided ? result.age : "—"}</strong></div>
             <div>Months covered: <strong>{result.monthsCovered}</strong></div>
 
             {mode === "Annual" ? (
               <>
                 <div>Remuneration (annual): <strong>{ZAR.format(result.remunerationAnnual)}</strong></div>
-                {partialYear && (
-                  <div>Remuneration (annual, pro-rated): <strong>{ZAR.format(result.remunerationAnnualProrated)}</strong></div>
-                )}
                 <div>Taxable income: <strong>{ZAR.format(result.taxableIncome)}</strong></div>
                 <div>Annual tax (before rebates): <strong>{ZAR.format(result.taxBeforeRebates)}</strong></div>
-                <div>Age rebates (total): <strong>{ZAR.format(result.rebates)}</strong></div>
+                <div>Rebates applied: <strong>{ZAR.format(result.rebates)}</strong></div>
                 <div>After rebates (annual): <strong>{ZAR.format(result.taxAfterRebates)}</strong></div>
                 <div>MTC (monthly): <strong>{ZAR.format(result.mtcMonthly)}</strong></div>
                 <div>MTC total (annual @ months): <strong>{ZAR.format(result.mtcAnnual)}</strong></div>
                 <div>AMTC (annual): <strong>{ZAR.format(result.amtc)}</strong></div>
                 <div>Annual tax after credits: <strong>{ZAR.format(result.taxAfterCredits)}</strong></div>
-                {partialYear && (
-                  <div>Annual tax (pro-rated × {result.annualProrationFactor.toFixed(3)}): <strong>{ZAR.format(result.annualTaxProrated)}</strong></div>
+
+                {partialYearByDays && (
+                  <div>
+                    Annual tax (pro-rated by days × {result.annualProrationFactorDays.toFixed(3)}):{" "}
+                    <strong>{ZAR.format(result.annualTaxProratedDays)}</strong>
+                  </div>
                 )}
+
                 <div>Balance vs PAYE paid: <strong>{ZAR.format(result.balance)}</strong></div>
               </>
             ) : (
               <>
                 <div>Remuneration (PAYE basis): <strong>{ZAR.format(result.remunerationPAYE)}</strong></div>
                 <div>Monthly PAYE (approx): <strong>{ZAR.format(result.monthlyPAYEApprox)}</strong></div>
-                <div>Pro-rata this month ({result.monthProrationPct.toFixed(0)}%): <strong>{ZAR.format(result.monthlyPAYEProrata)}</strong></div>
+                {prorataMonthByDays && (
+                  <div>
+                    Pro-rata this month ({(result.monthProrationPctDays * 100).toFixed(0)}%):{" "}
+                    <strong>{ZAR.format(result.monthlyPAYEProrataDays)}</strong>
+                  </div>
+                )}
                 <div>MTC (monthly): <strong>{ZAR.format(result.mtcMonthly)}</strong></div>
                 <div>MTC (annual @ months): <strong>{ZAR.format(result.mtcAnnual)}</strong></div>
               </>
@@ -233,7 +278,8 @@ export default function TaxTool() {
 
           <div className="mt-3 text-sm text-gray-600">
             Notes: Travel allowance included at {deem80 ? "20%" : "80%"} for PAYE. Retirement deduction cap = min(RA, 27.5% of remuneration, R350,000).
-            Annual pro-rata applies by months/12 when selected; monthly pro-rata applies by the entered % for this month.
+            Annual pro-rata reduces the **final annual tax** by your days employed in the tax year.
+            Monthly pro-rata reduces the **PAYE withheld this month** by worked-days/period-days. Medical credits follow SARS monthly rules (not day-based).
           </div>
         </div>
       )}

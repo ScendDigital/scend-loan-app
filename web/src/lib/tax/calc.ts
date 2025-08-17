@@ -3,8 +3,8 @@
 export type TaxYear = "2024/25" | "2025/26";
 
 const TABLES = {
-  "2024/25": { asOf: new Date(Date.UTC(2025, 1, 28)) }, // 28 Feb 2025
-  "2025/26": { asOf: new Date(Date.UTC(2026, 1, 28)) }, // 28 Feb 2026
+  "2024/25": { asOf: new Date(Date.UTC(2025, 1, 28)), daysInYear: 365 },
+  "2025/26": { asOf: new Date(Date.UTC(2026, 1, 28)), daysInYear: 365 },
 } as const;
 
 // SARS brackets/rebates/credits (unchanged across 2024/25 and 2025/26)
@@ -40,7 +40,7 @@ function taxBeforeRebates(taxable: number): number {
 }
 
 function rebatesForAge(age: number): number {
-  let r = REBATES.primary;
+  let r = REBATES.primary;          // primary applies to everyone
   if (age >= 65) r += REBATES.secondary;
   if (age >= 75) r += REBATES.tertiary;
   return r;
@@ -85,23 +85,31 @@ export function calculateAnnualPAYE(input: {
   retirementContribAnnual: number;  // total contributions considered
   medDependants: number;            // incl. main member
   medContributionMonthly: number;   // employee contribution per month
-  monthsCovered: number;            // 1–12 (also used for annual pro-rata)
+  monthsCovered: number;            // 1–12 (used for MTC & AMTC)
   medOutOfPocketAnnual: number;     // qualifying OOP
   idNumber?: string;
   disabled?: boolean;
 
-  // --- pro-rata flags ---
-  partialYear?: boolean;            // pro-rate annual tax by months/12
-  monthProrataPct?: number;         // 0–100: pro-rate this month's PAYE
+  // --- day-based pro-rata ---
+  partialYearByDays?: boolean;      // if true, apply yearDaysWorked/yearDaysInYear to final annual tax
+  yearDaysWorked?: number;          // days employed in tax year
+  yearDaysInYear?: number;          // override; default from TABLES
+
+  prorataMonthByDays?: boolean;     // if true, apply monthWorkedDays/monthDaysInPeriod to monthly PAYE
+  monthWorkedDays?: number;         // days worked in the specific month
+  monthDaysInPeriod?: number;       // total days in that month/period
 }) {
   const year: TaxYear = input.taxYear ?? "2024/25";
   const asOf = TABLES[year].asOf;
-  const age = input.idNumber ? ageFromSouthAfricanID(input.idNumber, asOf) : 0;
+  const daysInYear = input.yearDaysInYear ?? TABLES[year].daysInYear;
+
+  const idProvided = !!input.idNumber && input.idNumber.length >= 6;
+  const age = idProvided ? ageFromSouthAfricanID(input.idNumber!, asOf) : 0;
 
   // Bases
   const travelPAYEIncl = (input.deem80BusinessUse ? 0.20 : 0.80) * (input.travelAllowanceAnnual || 0);
-  const remunerationPAYE = input.baseAnnualIncome + travelPAYEIncl;                 // used for monthly
-  const remunerationAnnual = input.baseAnnualIncome + (input.travelAllowanceAnnual || 0); // used for annual
+  const remunerationPAYE = input.baseAnnualIncome + travelPAYEIncl;                  // monthly PAYE basis
+  const remunerationAnnual = input.baseAnnualIncome + (input.travelAllowanceAnnual || 0); // annual assessment basis
 
   // Retirement deduction
   const raAllowed = allowedRetirementDeduction(remunerationAnnual, input.retirementContribAnnual || 0);
@@ -109,10 +117,12 @@ export function calculateAnnualPAYE(input: {
   // Taxable income & ladder
   const taxableIncome = Math.max(0, remunerationAnnual - raAllowed);
   const taxBR = taxBeforeRebates(taxableIncome);
-  const rebates = rebatesForAge(age);
-  const taxAfterRebates = Math.max(0, taxBR - rebates);
 
-  // Medical credits
+  // Rebates (primary always; age-based extras only if ID is supplied)
+  const baseRebates = REBATES.primary + (idProvided ? (age >= 65 ? REBATES.secondary : 0) + (age >= 75 ? REBATES.tertiary : 0) : 0);
+  const taxAfterRebates = Math.max(0, taxBR - baseRebates);
+
+  // Medical credits (month-based by SARS rules; not day-based)
   const months = clamp(input.monthsCovered || 0, 0, 12);
   const mtcMonthly = mtcPerMonth(input.medDependants || 0);
   const mtcAnnual = mtcMonthly * months;
@@ -128,42 +138,59 @@ export function calculateAnnualPAYE(input: {
 
   const taxAfterCredits = Math.max(0, taxAfterRebates - mtcAnnual - amtc);
 
-  // ---- Pro-rata: Annual ----
-  const factorAnnual = input.partialYear ? (months / 12) : 1;
-  const remunerationAnnualProrated = remunerationAnnual * factorAnnual;
-  const annualTaxProrated = taxAfterCredits * factorAnnual;
+  // ---- Pro-rata: Annual (by days) ----
+  let annualProrationFactorDays = 1;
+  let annualTaxProratedDays = taxAfterCredits;
+  if (input.partialYearByDays) {
+    const worked = clamp(input.yearDaysWorked ?? 0, 0, daysInYear);
+    annualProrationFactorDays = daysInYear > 0 ? worked / daysInYear : 0;
+    annualTaxProratedDays = taxAfterCredits * annualProrationFactorDays;
+  }
 
-  // ---- Pro-rata: This month (PAYE) ----
+  // ---- Pro-rata: This month (by days) ----
   const monthlyPAYEApprox = taxAfterCredits / 12;
-  const monthPct = clamp((input.monthProrataPct ?? 100), 0, 100) / 100;
-  const monthlyPAYEProrata = monthlyPAYEApprox * monthPct;
+  let monthProrationPctDays = 1;
+  let monthlyPAYEProrataDays = monthlyPAYEApprox;
+  if (input.prorataMonthByDays) {
+    const dWorked = clamp(input.monthWorkedDays ?? 0, 0, 366);
+    const dPeriod = clamp(input.monthDaysInPeriod ?? 0, 0, 366);
+    monthProrationPctDays = dPeriod > 0 ? dWorked / dPeriod : 0;
+    monthlyPAYEProrataDays = monthlyPAYEApprox * monthProrationPctDays;
+  }
+
+  const rebateNote = idProvided
+    ? null
+    : "No ID provided: only the primary rebate applied. Add an ID to unlock 65+/75+ age rebates.";
 
   return {
     // inputs resolved
     taxYear: year,
+    idProvided,
+    rebateNote,
     age,
     monthsCovered: months,
 
     // bases
     remunerationPAYE,
     remunerationAnnual,
-    remunerationAnnualProrated,
 
     // tax ladder
     taxableIncome,
     taxBeforeRebates: taxBR,
-    rebates,
+    rebates: baseRebates,
     taxAfterRebates,
     mtcMonthly,
     mtcAnnual,
     amtc,
     taxAfterCredits,
 
-    // results
+    // annual pro-rata (days)
+    annualTaxProratedDays,
+    annualProrationFactorDays,
+
+    // monthly pro-rata (days)
     monthlyPAYEApprox,
-    monthlyPAYEProrata,
-    annualTaxProrated,
-    annualProrationFactor: factorAnnual,
-    monthProrationPct: monthPct * 100,
+    monthlyPAYEProrataDays,
+    monthProrationPctDays,
   };
 }
