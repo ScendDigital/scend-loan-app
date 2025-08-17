@@ -2,38 +2,41 @@
 "use client";
 
 import { useState } from "react";
-import { calculateAnnualPAYE } from "../lib/tax/calc"; // relative to /components
+import { calculateAnnualPAYE } from "../lib/tax/calc";
 
 const ZAR = new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" });
-
-function num(v) {
-  const n = parseFloat(String(v).replace(/[, ]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
+function num(v) { const n = parseFloat(String(v).replace(/[, ]/g, "")); return Number.isFinite(n) ? n : 0; }
 
 export default function TaxTool() {
-  // --- Inputs / state ---
-  const [taxYear, setTaxYear] = useState("2024/25");              // "2024/25" | "2025/26"
-  const [mode, setMode] = useState("Annual");                     // "Annual" | "Monthly"
+  // Selectors
+  const [taxYear, setTaxYear] = useState("2024/25");     // "2024/25" | "2025/26"
+  const [mode, setMode] = useState("Annual");            // "Annual" | "Monthly"
 
-  const [baseAnnualIncome, setBaseAnnualIncome] = useState("");   // excl travel
-  const [travelAllowance, setTravelAllowance] = useState("");     // annual
-  const [deem80, setDeem80] = useState(false);                    // true => 20% PAYE inclusion
+  // Income & travel
+  const [baseAnnualIncome, setBaseAnnualIncome] = useState("");
+  const [travelAllowance, setTravelAllowance] = useState("");
+  const [deem80, setDeem80] = useState(false);
 
+  // Retirement & PAYE paid
   const [retirementAnnual, setRetirementAnnual] = useState("");
   const [payePaid, setPayePaid] = useState("");
 
-  const [medDeps, setMedDeps] = useState("0");                    // incl main
-  const [medPM, setMedPM] = useState("");                         // per month
+  // Medical
+  const [medDeps, setMedDeps] = useState("0");
+  const [medPM, setMedPM] = useState("");
   const [months, setMonths] = useState("12");
   const [medOOP, setMedOOP] = useState("");
 
+  // ID & disability
   const [idNum, setIdNum] = useState("");
   const [disabled, setDisabled] = useState(false);
 
+  // Pro-rata flags/inputs
+  const [partialYear, setPartialYear] = useState(false);        // Annual pro-rata (months/12)
+  const [monthProrataPct, setMonthProrataPct] = useState("100"); // Monthly pro-rata %
+
   const [result, setResult] = useState(null);
 
-  // --- Actions ---
   const onCalculate = () => {
     const res = calculateAnnualPAYE({
       taxYear,
@@ -47,6 +50,10 @@ export default function TaxTool() {
       medOutOfPocketAnnual: num(medOOP),
       idNumber: idNum,
       disabled,
+
+      // pro-rata options
+      partialYear,
+      monthProrataPct: num(monthProrataPct),
     });
     const balance = res.taxAfterCredits - num(payePaid);
     setResult({ ...res, balance });
@@ -66,28 +73,22 @@ export default function TaxTool() {
     setMedOOP("");
     setIdNum("");
     setDisabled(false);
+    setPartialYear(false);
+    setMonthProrataPct("100");
     setResult(null);
   };
 
-  const onExportPDF = () => {
-    // Simple print for now (avoids extra deps). Swap with jsPDF if you prefer.
-    window.print();
-  };
+  const onExportPDF = () => { window.print(); };
 
-  // --- UI ---
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-semibold">Scend • SARS PAYE</h1>
 
-      {/* Top selectors */}
+      {/* Year & Mode */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <label className="block">
           <div className="text-sm font-medium mb-1">Tax Year</div>
-          <select
-            className="border rounded p-2 w-full"
-            value={taxYear}
-            onChange={(e) => setTaxYear(e.target.value)}
-          >
+          <select className="border rounded p-2 w-full" value={taxYear} onChange={(e) => setTaxYear(e.target.value)}>
             <option value="2024/25">2024/25</option>
             <option value="2025/26">2025/26</option>
           </select>
@@ -95,11 +96,7 @@ export default function TaxTool() {
 
         <label className="block">
           <div className="text-sm font-medium mb-1">Mode</div>
-          <select
-            className="border rounded p-2 w-full"
-            value={mode}
-            onChange={(e) => setMode(e.target.value)}
-          >
+          <select className="border rounded p-2 w-full" value={mode} onChange={(e) => setMode(e.target.value)}>
             <option>Annual</option>
             <option>Monthly</option>
           </select>
@@ -110,31 +107,17 @@ export default function TaxTool() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="block">
           <div className="text-sm font-medium mb-1">Base Annual Income (excl. travel)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="e.g. 870057.68"
-            value={baseAnnualIncome}
-            onChange={(e) => setBaseAnnualIncome(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="e.g. 870057.68" value={baseAnnualIncome} onChange={(e) => setBaseAnnualIncome(e.target.value)} />
         </label>
 
         <label className="block">
           <div className="text-sm font-medium mb-1">Travel Allowance (annual)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="e.g. 60000"
-            value={travelAllowance}
-            onChange={(e) => setTravelAllowance(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="e.g. 60000" value={travelAllowance} onChange={(e) => setTravelAllowance(e.target.value)} />
         </label>
       </div>
 
       <label className="inline-flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={deem80}
-          onChange={(e) => setDeem80(e.target.checked)}
-        />
+        <input type="checkbox" checked={deem80} onChange={(e) => setDeem80(e.target.checked)} />
         <span>Employer deems ≥80% business use (20% taxable for PAYE)</span>
       </label>
 
@@ -142,22 +125,12 @@ export default function TaxTool() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="block">
           <div className="text-sm font-medium mb-1">Retirement Contributions (annual)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="e.g. 107898"
-            value={retirementAnnual}
-            onChange={(e) => setRetirementAnnual(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="e.g. 107898" value={retirementAnnual} onChange={(e) => setRetirementAnnual(e.target.value)} />
         </label>
 
         <label className="block">
           <div className="text-sm font-medium mb-1">Tax paid already (annual PAYE)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="e.g. 184996.28"
-            value={payePaid}
-            onChange={(e) => setPayePaid(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="e.g. 184996.28" value={payePaid} onChange={(e) => setPayePaid(e.target.value)} />
         </label>
       </div>
 
@@ -165,42 +138,22 @@ export default function TaxTool() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <label className="block">
           <div className="text-sm font-medium mb-1">Medical Dependants (incl. main)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="e.g. 3"
-            value={medDeps}
-            onChange={(e) => setMedDeps(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="e.g. 3" value={medDeps} onChange={(e) => setMedDeps(e.target.value)} />
         </label>
 
         <label className="block">
           <div className="text-sm font-medium mb-1">Medical Scheme Contribution (per month)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="e.g. 3500"
-            value={medPM}
-            onChange={(e) => setMedPM(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="e.g. 3500" value={medPM} onChange={(e) => setMedPM(e.target.value)} />
         </label>
 
         <label className="block">
           <div className="text-sm font-medium mb-1">Months Covered (1–12)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="12"
-            value={months}
-            onChange={(e) => setMonths(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="12" value={months} onChange={(e) => setMonths(e.target.value)} />
         </label>
 
         <label className="block">
           <div className="text-sm font-medium mb-1">Medical Out-of-Pocket (annual)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="e.g. 12000"
-            value={medOOP}
-            onChange={(e) => setMedOOP(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="e.g. 12000" value={medOOP} onChange={(e) => setMedOOP(e.target.value)} />
         </label>
       </div>
 
@@ -208,35 +161,33 @@ export default function TaxTool() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <label className="block md:col-span-2">
           <div className="text-sm font-medium mb-1">ID Number (for age rebates)</div>
-          <input
-            className="border rounded p-2 w-full"
-            placeholder="e.g. 8409196012087"
-            value={idNum}
-            onChange={(e) => setIdNum(e.target.value)}
-          />
+          <input className="border rounded p-2 w-full" placeholder="e.g. 8409196012087" value={idNum} onChange={(e) => setIdNum(e.target.value)} />
         </label>
 
         <label className="inline-flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={disabled}
-            onChange={(e) => setDisabled(e.target.checked)}
-          />
+          <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
           <span>Disability (you/spouse/child)</span>
+        </label>
+      </div>
+
+      {/* Pro-rata options */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <label className="inline-flex items-center gap-2">
+          <input type="checkbox" checked={partialYear} onChange={(e) => setPartialYear(e.target.checked)} />
+          <span>Partial tax year (Annual pro-rata by months/12)</span>
+        </label>
+
+        <label className="block">
+          <div className="text-sm font-medium mb-1">Pro-rata this month (PAYE) %</div>
+          <input className="border rounded p-2 w-full" placeholder="100" value={monthProrataPct} onChange={(e) => setMonthProrataPct(e.target.value)} />
         </label>
       </div>
 
       {/* Actions */}
       <div className="flex gap-3">
-        <button className="px-4 py-2 rounded bg-black text-white" onClick={onCalculate}>
-          Calculate
-        </button>
-        <button className="px-4 py-2 rounded border" onClick={onExportPDF}>
-          Export PDF
-        </button>
-        <button className="px-4 py-2 rounded border" onClick={onClear}>
-          Clear
-        </button>
+        <button className="px-4 py-2 rounded bg-black text-white" onClick={onCalculate}>Calculate</button>
+        <button className="px-4 py-2 rounded border" onClick={onExportPDF}>Export PDF</button>
+        <button className="px-4 py-2 rounded border" onClick={onClear}>Clear</button>
       </div>
 
       {/* Results */}
@@ -245,6 +196,7 @@ export default function TaxTool() {
           <div className="text-lg font-semibold mb-2">
             Breakdown ({result.taxYear}) • {mode}
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
             <div>Age (from ID): <strong>{result.age}</strong></div>
             <div>Months covered: <strong>{result.monthsCovered}</strong></div>
@@ -252,20 +204,27 @@ export default function TaxTool() {
             {mode === "Annual" ? (
               <>
                 <div>Remuneration (annual): <strong>{ZAR.format(result.remunerationAnnual)}</strong></div>
+                {partialYear && (
+                  <div>Remuneration (annual, pro-rated): <strong>{ZAR.format(result.remunerationAnnualProrated)}</strong></div>
+                )}
                 <div>Taxable income: <strong>{ZAR.format(result.taxableIncome)}</strong></div>
                 <div>Annual tax (before rebates): <strong>{ZAR.format(result.taxBeforeRebates)}</strong></div>
                 <div>Age rebates (total): <strong>{ZAR.format(result.rebates)}</strong></div>
                 <div>After rebates (annual): <strong>{ZAR.format(result.taxAfterRebates)}</strong></div>
                 <div>MTC (monthly): <strong>{ZAR.format(result.mtcMonthly)}</strong></div>
-                <div>MTC total (annual): <strong>{ZAR.format(result.mtcAnnual)}</strong></div>
+                <div>MTC total (annual @ months): <strong>{ZAR.format(result.mtcAnnual)}</strong></div>
                 <div>AMTC (annual): <strong>{ZAR.format(result.amtc)}</strong></div>
                 <div>Annual tax after credits: <strong>{ZAR.format(result.taxAfterCredits)}</strong></div>
-                <div>Balance due / (refund) vs PAYE already paid: <strong>{ZAR.format(result.balance)}</strong></div>
+                {partialYear && (
+                  <div>Annual tax (pro-rated × {result.annualProrationFactor.toFixed(3)}): <strong>{ZAR.format(result.annualTaxProrated)}</strong></div>
+                )}
+                <div>Balance vs PAYE paid: <strong>{ZAR.format(result.balance)}</strong></div>
               </>
             ) : (
               <>
                 <div>Remuneration (PAYE basis): <strong>{ZAR.format(result.remunerationPAYE)}</strong></div>
                 <div>Monthly PAYE (approx): <strong>{ZAR.format(result.monthlyPAYEApprox)}</strong></div>
+                <div>Pro-rata this month ({result.monthProrationPct.toFixed(0)}%): <strong>{ZAR.format(result.monthlyPAYEProrata)}</strong></div>
                 <div>MTC (monthly): <strong>{ZAR.format(result.mtcMonthly)}</strong></div>
                 <div>MTC (annual @ months): <strong>{ZAR.format(result.mtcAnnual)}</strong></div>
               </>
@@ -274,7 +233,7 @@ export default function TaxTool() {
 
           <div className="mt-3 text-sm text-gray-600">
             Notes: Travel allowance included at {deem80 ? "20%" : "80%"} for PAYE. Retirement deduction cap = min(RA, 27.5% of remuneration, R350,000).
-            Apply official SARS 2024/25 tables; unchanged for 2025/26. Update numbers when SARS publishes changes.
+            Annual pro-rata applies by months/12 when selected; monthly pro-rata applies by the entered % for this month.
           </div>
         </div>
       )}
