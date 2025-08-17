@@ -1,7 +1,6 @@
-import dynamic from 'next/dynamic';
-
-const TaxTool = dynamic(() => import('../../components/TaxTool'), { ssr: false });
+// src/app/tax/page.tsx
+import TaxToolClient from "./TaxToolClient";
 
 export default function TaxPage() {
-  return <TaxTool />;
+  return <TaxToolClient />;
 }
