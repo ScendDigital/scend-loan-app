@@ -14,7 +14,6 @@ export default function TaxTool() {
 
   // Income & travel
   const [baseAnnualIncome, setBaseAnnualIncome] = useState("");
-  the
   const [travelAllowance, setTravelAllowance] = useState("");
   const [deem80, setDeem80] = useState(false);
 
@@ -38,7 +37,7 @@ export default function TaxTool() {
 
   const [prorataMonthByDays, setProrataMonthByDays] = useState(false);
   const [monthWorkedDays, setMonthWorkedDays] = useState("");   // e.g. 10
-  const [monthDaysInPeriod, setMonthDaysInPeriod] = useState(""); // e.g. 22 (working) or 30/31 (calendar)
+  const [monthDaysInPeriod, setMonthDaysInPeriod] = useState(""); // e.g. 22 or 30/31
 
   const [result, setResult] = useState(null);
 
@@ -278,8 +277,8 @@ export default function TaxTool() {
 
           <div className="mt-3 text-sm text-gray-600">
             Notes: Travel allowance included at {deem80 ? "20%" : "80%"} for PAYE. Retirement deduction cap = min(RA, 27.5% of remuneration, R350,000).
-            Annual pro-rata reduces the **final annual tax** by your days employed in the tax year.
-            Monthly pro-rata reduces the **PAYE withheld this month** by worked-days/period-days. Medical credits follow SARS monthly rules (not day-based).
+            Annual pro-rata reduces the final annual tax by your days employed in the tax year.
+            Monthly pro-rata reduces the PAYE withheld this month by worked-days/period-days. Medical credits follow SARS monthly rules (not day-based).
           </div>
         </div>
       )}
