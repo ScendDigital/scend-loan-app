@@ -7,6 +7,7 @@ const links = [
   { href: '/about', label: 'About Us' },
   { href: '/contact', label: 'Contact' },
   { href: '/tax', label: 'Tax Tool' },
+  { href: '/loan', label: 'Loan Tool' },
 ];
 
 export default function Navbar() {
