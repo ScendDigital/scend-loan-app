@@ -1,6 +1,20 @@
 {
   "/_app": "pages/_app.js",
+  "/NotFound": "pages/NotFound.html",
+  "/api/payfast/ipn": "pages/api/payfast/ipn.js",
+  "/about": "pages/about.html",
   "/_error": "pages/_error.js",
+  "/api/payfast/sign": "pages/api/payfast/sign.js",
+  "/loan": "pages/loan.html",
+  "/api/session/create": "pages/api/session/create.js",
+  "/api/ping": "pages/api/ping.js",
+  "/pay": "pages/pay.html",
+  "/": "pages/index.html",
+  "/tax": "pages/tax.html",
+  "/contact": "pages/contact.html",
+  "/success": "pages/success.html",
+  "/select-tool": "pages/select-tool.html",
+  "/api/payfast/itn": "pages/api/payfast/itn.js",
   "/_document": "pages/_document.js",
-  "/": "pages/index.js"
+  "/404": "pages/404.html"
 }
