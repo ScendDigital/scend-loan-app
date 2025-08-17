@@ -12,22 +12,26 @@ export default function TaxTool() {
   const [taxYear, setTaxYear] = useState("2024/25");   // "2024/25" | "2025/26"
   const [mode, setMode] = useState("Annual");          // "Annual" | "Monthly"
 
-  // Income & travel (annual inputs; monthly view derives from these)
-  const [baseAnnualIncome, setBaseAnnualIncome] = useState("");
-  const [travelAllowance, setTravelAllowance] = useState("");
+  // Income & travel (user input)
+  // In Monthly mode these are PER MONTH; in Annual mode they are ANNUAL
+  const [baseIncomeInput, setBaseIncomeInput] = useState("");
+  const [travelInput, setTravelInput] = useState("");
   const [deem80, setDeem80] = useState(false);
 
-  // Retirement & PAYE paid (annual)
-  const [retirementAnnual, setRetirementAnnual] = useState("");
+  // Retirement (user input)
+  // In Monthly mode this is PER MONTH; in Annual mode it's ANNUAL
+  const [retirementInput, setRetirementInput] = useState("");
+
+  // PAYE paid (only Annual mode compares to annual PAYE already paid)
   const [payePaidAnnual, setPayePaidAnnual] = useState("");
 
   // Medical (SARS is month-based for credits)
   const [medDeps, setMedDeps] = useState("0");
-  const [medPM, setMedPM] = useState("");
-  const [months, setMonths] = useState("12");      // only needed for annual calc & AMTC
-  const [medOOP, setMedOOP] = useState("");        // AMTC input (annual)
+  const [medPM, setMedPM] = useState("");     // per month, both modes
+  const [months, setMonths] = useState("12"); // only used in Annual mode (AMTC)
+  const [medOOP, setMedOOP] = useState("");   // annual, only Annual mode
 
-  // ID & disability (affects rebates/AMTC)
+  // ID & disability
   const [idNum, setIdNum] = useState("");
   const [disabled, setDisabled] = useState(false);
 
@@ -43,8 +47,12 @@ export default function TaxTool() {
   const [result, setResult] = useState(null);
   const [hasCalculated, setHasCalculated] = useState(false);
 
-  // Calculate using only the flags relevant to the current mode
   const onCalculate = () => {
+    // Annualise inputs if we're in Monthly mode
+    const baseAnnual = mode === "Monthly" ? num(baseIncomeInput) * 12 : num(baseIncomeInput);
+    const travelAnnual = mode === "Monthly" ? num(travelInput) * 12 : num(travelInput);
+    const retireAnnual = mode === "Monthly" ? num(retirementInput) * 12 : num(retirementInput);
+
     const annualFlags =
       mode === "Annual"
         ? { partialYearByDays, yearDaysWorked: num(yearDaysWorked) || 0 }
@@ -61,14 +69,18 @@ export default function TaxTool() {
 
     const res = calculateAnnualPAYE({
       taxYear,
-      baseAnnualIncome: num(baseAnnualIncome),
-      travelAllowanceAnnual: num(travelAllowance),
+      baseAnnualIncome: baseAnnual,                 // always ANNUAL to the calc
+      travelAllowanceAnnual: travelAnnual,          // always ANNUAL to the calc
       deem80BusinessUse: deem80,
-      retirementContribAnnual: num(retirementAnnual),
+      retirementContribAnnual: retireAnnual,        // always ANNUAL to the calc
+
       medDependants: Math.max(0, Math.floor(num(medDeps))),
-      medContributionMonthly: num(medPM),
-      monthsCovered: Math.max(0, Math.min(12, Math.floor(num(months)))),
-      medOutOfPocketAnnual: num(medOOP),
+      medContributionMonthly: num(medPM),           // monthly in both modes
+
+      // For Monthly mode we don't need months/OOP for the baseline; pass 12 so MTC annualises cleanly.
+      monthsCovered: mode === "Annual" ? Math.max(0, Math.min(12, Math.floor(num(months)))) : 12,
+      medOutOfPocketAnnual: mode === "Annual" ? num(medOOP) : 0,
+
       idNumber: idNum,
       disabled,
       ...annualFlags,
@@ -90,10 +102,10 @@ export default function TaxTool() {
   const onClear = () => {
     setTaxYear("2024/25");
     setMode("Annual");
-    setBaseAnnualIncome("");
-    setTravelAllowance("");
+    setBaseIncomeInput("");
+    setTravelInput("");
     setDeem80(false);
-    setRetirementAnnual("");
+    setRetirementInput("");
     setPayePaidAnnual("");
     setMedDeps("0");
     setMedPM("");
@@ -135,20 +147,30 @@ export default function TaxTool() {
         </label>
       </div>
 
-      {/* Income & Travel (always needed because monthly derives from annual inputs) */}
+      {/* Income & Travel */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="block">
           <div className="text-sm font-medium mb-1">
-            {mode === "Annual" ? "Base Annual Income (excl. travel)" : "Base Annual Income (annual figure)"}
+            {mode === "Annual" ? "Base Annual Income (excl. travel)" : "Base Income (per month, excl. travel)"}
           </div>
-          <input className="border rounded p-2 w-full" placeholder="e.g. 870057.68" value={baseAnnualIncome} onChange={(e) => setBaseAnnualIncome(e.target.value)} />
+          <input
+            className="border rounded p-2 w-full"
+            placeholder={mode === "Annual" ? "e.g. 870057.68" : "e.g. 72504.81"}
+            value={baseIncomeInput}
+            onChange={(e) => setBaseIncomeInput(e.target.value)}
+          />
         </label>
 
         <label className="block">
           <div className="text-sm font-medium mb-1">
-            {mode === "Annual" ? "Travel Allowance (annual)" : "Travel Allowance (annual figure)"}
+            {mode === "Annual" ? "Travel Allowance (annual)" : "Travel Allowance (per month)"}
           </div>
-          <input className="border rounded p-2 w-full" placeholder="e.g. 60000" value={travelAllowance} onChange={(e) => setTravelAllowance(e.target.value)} />
+          <input
+            className="border rounded p-2 w-full"
+            placeholder={mode === "Annual" ? "e.g. 60000" : "e.g. 5000"}
+            value={travelInput}
+            onChange={(e) => setTravelInput(e.target.value)}
+          />
         </label>
       </div>
 
@@ -157,22 +179,34 @@ export default function TaxTool() {
         <span>Employer deems ≥80% business use (20% taxable for PAYE)</span>
       </label>
 
-      {/* Retirement (annual) & PAYE paid (annual-only) */}
+      {/* Retirement & PAYE paid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="block">
-          <div className="text-sm font-medium mb-1">Retirement Contributions (annual)</div>
-          <input className="border rounded p-2 w-full" placeholder="e.g. 107898" value={retirementAnnual} onChange={(e) => setRetirementAnnual(e.target.value)} />
+          <div className="text-sm font-medium mb-1">
+            {mode === "Annual" ? "Retirement Contributions (annual)" : "Retirement Contributions (per month)"}
+          </div>
+          <input
+            className="border rounded p-2 w-full"
+            placeholder={mode === "Annual" ? "e.g. 107898" : "e.g. 8992"}
+            value={retirementInput}
+            onChange={(e) => setRetirementInput(e.target.value)}
+          />
         </label>
 
         {mode === "Annual" && (
           <label className="block">
             <div className="text-sm font-medium mb-1">Tax paid already (annual PAYE)</div>
-            <input className="border rounded p-2 w-full" placeholder="e.g. 184996.28" value={payePaidAnnual} onChange={(e) => setPayePaidAnnual(e.target.value)} />
+            <input
+              className="border rounded p-2 w-full"
+              placeholder="e.g. 184996.28"
+              value={payePaidAnnual}
+              onChange={(e) => setPayePaidAnnual(e.target.value)}
+            />
           </label>
         )}
       </div>
 
-      {/* Medical: in Monthly mode, only monthly MTC matters (hide months & OOP) */}
+      {/* Medical */}
       <div className={`grid ${mode === "Annual" ? "grid-cols-1 md:grid-cols-4" : "grid-cols-1 md:grid-cols-2"} gap-4`}>
         <label className="block">
           <div className="text-sm font-medium mb-1">Medical Dependants (incl. main)</div>
@@ -212,7 +246,7 @@ export default function TaxTool() {
         </label>
       </div>
 
-      {/* Pro-rata controls – shown per mode */}
+      {/* Pro-rata controls – per mode */}
       {mode === "Annual" ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="inline-flex items-center gap-2">
@@ -296,11 +330,11 @@ export default function TaxTool() {
             ) : (
               <>
                 <div>Remuneration (PAYE basis): <strong>{ZAR.format(result.remunerationPAYE)}</strong></div>
-                <div>Monthly PAYE (approx): <strong>{ZAR.format(result.monthlyPAYEApprox)}</strong></div>
+                <div>Monthly PAYE (approx, no AMTC): <strong>{ZAR.format(result.monthlyPAYE_without_AMTC)}</strong></div>
                 {prorataMonthByDays && (
                   <div>
                     Pro-rata this month ({(result.monthProrationPctDays * 100).toFixed(0)}%):{" "}
-                    <strong>{ZAR.format(result.monthlyPAYEProrataDays)}</strong>
+                    <strong>{ZAR.format(result.monthlyPAYEProrataDaysNoAMTC)}</strong>
                   </div>
                 )}
                 <div>MTC (monthly): <strong>{ZAR.format(result.mtcMonthly)}</strong></div>
@@ -311,7 +345,7 @@ export default function TaxTool() {
           <div className="mt-3 text-sm text-gray-600">
             {mode === "Annual"
               ? "Notes: Annual view uses full-year figures. Annual pro-rata (if selected) scales the final annual tax by your employed days in the tax year. Medical credits follow SARS monthly rules."
-              : "Notes: Monthly view shows PAYE derived from annual assessment divided by 12. Monthly pro-rata (if selected) scales this month's PAYE by worked-days / period-days. Medical credits are applied per month (AMTC is annual, not shown here)."}
+              : "Notes: Monthly view accepts per-month figures and annualises them under the hood. Monthly PAYE excludes AMTC (assessment-only) and includes the monthly MTC. Day-based pro-rata scales this month’s PAYE by worked-days/period-days."}
           </div>
         </div>
       )}
